@@ -10,6 +10,8 @@ const adminLinks = [
   { to: "/admin/pto", label: "Leadership PTO" },
 ];
 
+const MAX_PTO_SLOTS = 2;
+
 function getDateRange(start, end) {
   const dates = [];
   const current = new Date(`${start}T00:00:00`);
@@ -42,6 +44,9 @@ export default function PTOAdmin() {
   const [loading, setLoading] = useState(true);
   const [submittingPTO, setSubmittingPTO] = useState(false);
   const [submittingBlackout, setSubmittingBlackout] = useState(false);
+
+  const [showPTOEntries, setShowPTOEntries] = useState(false);
+  const [showBlackoutEntries, setShowBlackoutEntries] = useState(false);
 
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const today = new Date();
@@ -122,6 +127,7 @@ export default function PTOAdmin() {
         title: item.leaders?.name || "Leader",
         start: item.start_date,
         end: endDate.toISOString().split("T")[0],
+        allDay: true,
         backgroundColor:
           item.status === "approved"
             ? "#22c55e"
@@ -134,6 +140,7 @@ export default function PTOAdmin() {
             : item.status === "pending"
             ? "#f59e0b"
             : "#94a3b8",
+        textColor: "#ffffff",
       };
     });
 
@@ -182,13 +189,8 @@ export default function PTOAdmin() {
         rows.set(date, {
           date,
           count,
-          status: isBlockedDate(date)
-            ? "blackout"
-            : count >= 2
-            ? "full"
-            : count === 1
-            ? "limited"
-            : "available",
+          status:
+            count >= MAX_PTO_SLOTS ? "full" : count > 0 ? "limited" : "available",
         });
       }
     });
@@ -227,7 +229,7 @@ export default function PTOAdmin() {
     }
 
     return Array.from(rows.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [approvedCoverageMap, blackoutDates, visibleMonth, isBlockedDate]);
+  }, [approvedCoverageMap, blackoutDates, visibleMonth]);
 
   const handlePTOChange = (e) => {
     const { name, value } = e.target;
@@ -246,30 +248,20 @@ export default function PTOAdmin() {
   };
 
   const validatePTO = () => {
-    if (!ptoForm.leader_id || !ptoForm.start_date || !ptoForm.end_date) {
-      return "Please complete leader, start date, and end date.";
-    }
+    if (!ptoForm.leader_id) return "Please select a leader.";
+    if (!ptoForm.start_date || !ptoForm.end_date) return "Please select both start and end dates.";
+    if (ptoForm.end_date < ptoForm.start_date) return "End date cannot be before start date.";
 
-    if (ptoForm.end_date < ptoForm.start_date) {
-      return "End date cannot be before start date.";
-    }
+    const selectedDates = getDateRange(ptoForm.start_date, ptoForm.end_date);
 
-    const requestedDates = getDateRange(ptoForm.start_date, ptoForm.end_date);
+    for (const date of selectedDates) {
+      if (isBlockedDate(date)) {
+        return `One or more selected dates are blocked or blacked out.`;
+      }
 
-    const blockedDate = requestedDates.find((date) => isBlockedDate(date));
-    if (blockedDate) {
-      const reason = manualBlackoutMap[blockedDate];
-      return reason
-        ? `The date ${blockedDate} is blacked out: ${reason}`
-        : `The date ${blockedDate} is blacked out for AEP.`;
-    }
-
-    if (ptoForm.status === "approved") {
-      for (const date of requestedDates) {
-        const currentCount = approvedCoverageMap[date] || 0;
-        if (currentCount >= 2) {
-          return `The date ${date} is already full with 2 leaders off.`;
-        }
+      const approvedCount = approvedCoverageMap[date] || 0;
+      if (ptoForm.status === "approved" && approvedCount >= MAX_PTO_SLOTS) {
+        return `One or more selected dates are already full.`;
       }
     }
 
@@ -400,9 +392,9 @@ export default function PTOAdmin() {
   return (
     <Layout title="Leadership PTO Calendar" links={adminLinks}>
       <div className="card">
-        <h2 className="section-title">Add Leadership PTO</h2>
+        <h2 className="section-title">PTO Actions</h2>
         <p className="section-subtext">
-          Enter PTO for leadership coverage planning.
+          Enter PTO and add blackout dates for leadership coverage planning.
         </p>
 
         <div className="blackout-alert">
@@ -412,210 +404,119 @@ export default function PTOAdmin() {
 
         {pageError && <p className="error-text">{pageError}</p>}
 
-        <form onSubmit={handlePTOSubmit} className="pto-form">
-          <div className="form-grid">
-            <div className="form-field">
-              <label>Leader</label>
-              <select
-                name="leader_id"
-                value={ptoForm.leader_id}
-                onChange={handlePTOChange}
-                required
+        <div className="dual-form-grid">
+          <div>
+            <h3 className="mini-section-title">Enter PTO</h3>
+
+            <form onSubmit={handlePTOSubmit} className="pto-form">
+              <div className="form-grid">
+                <div className="form-field">
+                  <label>Leader</label>
+                  <select
+                    name="leader_id"
+                    value={ptoForm.leader_id}
+                    onChange={handlePTOChange}
+                    required
+                  >
+                    <option value="">Select leader</option>
+                    {leaders.map((leader) => (
+                      <option key={leader.id} value={leader.id}>
+                        {leader.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-field">
+                  <label>Start Date</label>
+                  <input
+                    type="date"
+                    name="start_date"
+                    value={ptoForm.start_date}
+                    onChange={handlePTOChange}
+                    required
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label>End Date</label>
+                  <input
+                    type="date"
+                    name="end_date"
+                    value={ptoForm.end_date}
+                    onChange={handlePTOChange}
+                    required
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label>Status</label>
+                  <select
+                    name="status"
+                    value={ptoForm.status}
+                    onChange={handlePTOChange}
+                  >
+                    <option value="approved">Approved</option>
+                    <option value="pending">Pending</option>
+                    <option value="denied">Denied</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-field">
+                <label>Notes</label>
+                <textarea
+                  name="notes"
+                  value={ptoForm.notes}
+                  onChange={handlePTOChange}
+                  placeholder="Optional notes"
+                  rows="3"
+                />
+              </div>
+
+              <button type="submit" className="primary-btn" disabled={submittingPTO}>
+                {submittingPTO ? "Saving..." : "Add PTO"}
+              </button>
+            </form>
+          </div>
+
+          <div>
+            <h3 className="mini-section-title">Add Blackout</h3>
+
+            <form onSubmit={handleBlackoutSubmit} className="pto-form">
+              <div className="form-grid">
+                <div className="form-field">
+                  <label>Blackout Date</label>
+                  <input
+                    type="date"
+                    name="blackout_date"
+                    value={blackoutForm.blackout_date}
+                    onChange={handleBlackoutChange}
+                    required
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label>Reason</label>
+                  <input
+                    type="text"
+                    name="reason"
+                    value={blackoutForm.reason}
+                    onChange={handleBlackoutChange}
+                    placeholder="Example: Leadership meeting or site event"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="primary-btn"
+                disabled={submittingBlackout}
               >
-                <option value="">Select leader</option>
-                {leaders.map((leader) => (
-                  <option key={leader.id} value={leader.id}>
-                    {leader.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-field">
-              <label>Start Date</label>
-              <input
-                type="date"
-                name="start_date"
-                value={ptoForm.start_date}
-                onChange={handlePTOChange}
-                required
-              />
-            </div>
-
-            <div className="form-field">
-              <label>End Date</label>
-              <input
-                type="date"
-                name="end_date"
-                value={ptoForm.end_date}
-                onChange={handlePTOChange}
-                required
-              />
-            </div>
-
-            <div className="form-field">
-              <label>Status</label>
-              <select
-                name="status"
-                value={ptoForm.status}
-                onChange={handlePTOChange}
-              >
-                <option value="approved">Approved</option>
-                <option value="pending">Pending</option>
-                <option value="denied">Denied</option>
-              </select>
-            </div>
+                {submittingBlackout ? "Saving..." : "Add Blackout Date"}
+              </button>
+            </form>
           </div>
-
-          <div className="form-field">
-            <label>Notes</label>
-            <textarea
-              name="notes"
-              value={ptoForm.notes}
-              onChange={handlePTOChange}
-              placeholder="Optional notes"
-              rows="3"
-            />
-          </div>
-
-          <button type="submit" className="primary-btn" disabled={submittingPTO}>
-            {submittingPTO ? "Saving..." : "Add PTO"}
-          </button>
-        </form>
-      </div>
-
-      <div className="card" style={{ marginTop: "20px" }}>
-        <h2 className="section-title">Add Manual Blackout Date</h2>
-        <p className="section-subtext">
-          Add extra blackout dates when something comes up outside of AEP.
-        </p>
-
-        <form onSubmit={handleBlackoutSubmit} className="pto-form">
-          <div className="form-grid">
-            <div className="form-field">
-              <label>Blackout Date</label>
-              <input
-                type="date"
-                name="blackout_date"
-                value={blackoutForm.blackout_date}
-                onChange={handleBlackoutChange}
-                required
-              />
-            </div>
-
-            <div className="form-field">
-              <label>Reason</label>
-              <input
-                type="text"
-                name="reason"
-                value={blackoutForm.reason}
-                onChange={handleBlackoutChange}
-                placeholder="Example: Leadership meeting or site event"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            className="primary-btn"
-            disabled={submittingBlackout}
-          >
-            {submittingBlackout ? "Saving..." : "Add Blackout Date"}
-          </button>
-        </form>
-      </div>
-
-      <div className="card" style={{ marginTop: "20px" }}>
-        <h2 className="section-title">Current Manual Blackout Dates</h2>
-        <p className="section-subtext">
-          AEP blackout dates are automatic. This list shows extra blackout dates you added manually.
-        </p>
-
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Reason</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {blackoutDates.length === 0 ? (
-                <tr>
-                  <td colSpan="3">No manual blackout dates added.</td>
-                </tr>
-              ) : (
-                blackoutDates.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.blackout_date}</td>
-                    <td>{item.reason || "—"}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="delete-btn"
-                        onClick={() => handleBlackoutRemove(item.id)}
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="card" style={{ marginTop: "20px" }}>
-        <h2 className="section-title">Current PTO Entries</h2>
-        <p className="section-subtext">
-          Remove PTO entries if plans change.
-        </p>
-
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Leader</th>
-                <th>Start Date</th>
-                <th>End Date</th>
-                <th>Status</th>
-                <th>Notes</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ptoItems.length === 0 ? (
-                <tr>
-                  <td colSpan="6">No PTO entries found.</td>
-                </tr>
-              ) : (
-                ptoItems.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.leaders?.name || "Unknown"}</td>
-                    <td>{item.start_date}</td>
-                    <td>{item.end_date}</td>
-                    <td>
-                      <span className={`status-pill status-${item.status}`}>
-                        {item.status}
-                      </span>
-                    </td>
-                    <td>{item.notes || "—"}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="delete-btn"
-                        onClick={() => handlePTORemove(item.id)}
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
         </div>
       </div>
 
@@ -628,11 +529,11 @@ export default function PTOAdmin() {
         <div className="legend-row">
           <div className="legend-item">
             <span className="legend-dot legend-green" />
-            <span>Available</span>
+            <span>Approved PTO</span>
           </div>
           <div className="legend-item">
             <span className="legend-dot legend-yellow" />
-            <span>1 Leader Off</span>
+            <span>Pending PTO</span>
           </div>
           <div className="legend-item">
             <span className="legend-dot legend-red" />
@@ -644,22 +545,28 @@ export default function PTOAdmin() {
           </div>
         </div>
 
-        <FullCalendar
-          plugins={[dayGridPlugin]}
-          initialView="dayGridMonth"
-          events={events}
-          height="auto"
-          datesSet={(info) => {
-            setVisibleMonth({
-              year: info.view.currentStart.getFullYear(),
-              month: info.view.currentStart.getMonth(),
-            });
-          }}
-          dayCellClassNames={(arg) => {
-            const dateString = arg.date.toISOString().split("T")[0];
-            return isBlockedDate(dateString) ? ["fc-blackout-day"] : [];
-          }}
-        />
+        {loading ? (
+          <p>Loading PTO calendar...</p>
+        ) : (
+          <FullCalendar
+            plugins={[dayGridPlugin]}
+            initialView="dayGridMonth"
+            events={events}
+            height="auto"
+            displayEventTime={false}
+            dayMaxEvents={true}
+            datesSet={(info) => {
+              setVisibleMonth({
+                year: info.view.currentStart.getFullYear(),
+                month: info.view.currentStart.getMonth(),
+              });
+            }}
+            dayCellClassNames={(arg) => {
+              const dateString = arg.date.toISOString().split("T")[0];
+              return isBlockedDate(dateString) ? ["fc-blackout-day"] : [];
+            }}
+          />
+        )}
       </div>
 
       <div className="card" style={{ marginTop: "20px" }}>
@@ -714,6 +621,121 @@ export default function PTOAdmin() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="card" style={{ marginTop: "20px" }}>
+        <h2 className="section-title">Manage Existing Entries</h2>
+        <p className="section-subtext">
+          Open only what you need to manage.
+        </p>
+
+        <div className="manage-toggle-row">
+          <button
+            type="button"
+            className="secondary-btn"
+            onClick={() => setShowPTOEntries((prev) => !prev)}
+          >
+            {showPTOEntries ? "Hide PTO Entries" : "View PTO Entries"}
+          </button>
+
+          <button
+            type="button"
+            className="secondary-btn"
+            onClick={() => setShowBlackoutEntries((prev) => !prev)}
+          >
+            {showBlackoutEntries ? "Hide Blackout Dates" : "View Blackout Dates"}
+          </button>
+        </div>
+
+        {showPTOEntries && (
+          <div style={{ marginTop: "20px" }}>
+            <h3 className="mini-section-title">Current PTO Entries</h3>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Leader</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Status</th>
+                    <th>Notes</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ptoItems.length === 0 ? (
+                    <tr>
+                      <td colSpan="6">No PTO entries found.</td>
+                    </tr>
+                  ) : (
+                    ptoItems.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.leaders?.name || "Unknown"}</td>
+                        <td>{item.start_date}</td>
+                        <td>{item.end_date}</td>
+                        <td>
+                          <span className={`status-pill status-${item.status}`}>
+                            {item.status}
+                          </span>
+                        </td>
+                        <td>{item.notes || "—"}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="delete-btn"
+                            onClick={() => handlePTORemove(item.id)}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {showBlackoutEntries && (
+          <div style={{ marginTop: "20px" }}>
+            <h3 className="mini-section-title">Current Manual Blackout Dates</h3>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Reason</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {blackoutDates.length === 0 ? (
+                    <tr>
+                      <td colSpan="3">No manual blackout dates added.</td>
+                    </tr>
+                  ) : (
+                    blackoutDates.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.blackout_date}</td>
+                        <td>{item.reason || "—"}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="delete-btn"
+                            onClick={() => handleBlackoutRemove(item.id)}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );
