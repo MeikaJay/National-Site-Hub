@@ -1,3 +1,5 @@
+import SalesTrackerAdmin from "./pages/admin/SalesTrackerAdmin";
+import LeaderSalesTracker from "./pages/leader/LeaderSalesTracker";
 import PIPAdmin from "./pages/admin/PIPAdmin";
 import LeaderPIPs from "./pages/leader/LeaderPIPs";
 import ScheduleAdmin from "./pages/admin/ScheduleAdmin";

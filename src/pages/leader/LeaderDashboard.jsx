@@ -9,6 +9,7 @@ const leaderLinks = [
   { to: "/leader/loa", label: "LOA" },
   { to: "/leader/pips", label: "PIPs" },
   { to: "/leader/schedules", label: "Schedules" },
+  { to: "/leader/sales", label: "Daily Sales" },
 ];
 
 export default function LeaderDashboard() {

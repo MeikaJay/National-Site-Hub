@@ -11,6 +11,7 @@ const adminLinks = [
   { to: "/admin/loa", label: "LOA" },
   { to: "/admin/pips", label: "PIPs" },
   { to: "/admin/schedules", label: "Schedules" },
+  { to: "/admin/sales", label: "Daily Sales" },
 ];
 
 export default function AdminDashboard() {
