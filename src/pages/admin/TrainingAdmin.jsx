@@ -11,11 +11,28 @@ const adminLinks = [
 const emptyForm = {
   training_start_date: "",
   training_end_date: "",
+  session_date: "",
+  session_time: "",
   host_leader_id: "",
   topic: "",
   status: "scheduled",
   notes: "",
 };
+
+function formatTimeForDisplay(timeValue) {
+  if (!timeValue) return "—";
+
+  const [hourString, minuteString] = timeValue.split(":");
+  const hour = Number(hourString);
+  const minute = minuteString || "00";
+
+  if (Number.isNaN(hour)) return timeValue;
+
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const twelveHour = hour % 12 || 12;
+
+  return `${twelveHour}:${minute} ${suffix}`;
+}
 
 export default function TrainingAdmin() {
   const [leaders, setLeaders] = useState([]);
@@ -44,12 +61,16 @@ export default function TrainingAdmin() {
           id,
           training_start_date,
           training_end_date,
+          session_date,
+          session_time,
           host_leader_id,
           topic,
           status,
           notes,
           leaders (name)
         `)
+        .order("session_date", { ascending: true, nullsFirst: false })
+        .order("session_time", { ascending: true, nullsFirst: false })
         .order("training_start_date", { ascending: true }),
     ]);
 
@@ -94,6 +115,14 @@ export default function TrainingAdmin() {
       return "End date cannot be before start date.";
     }
 
+    if (formData.session_date && formData.session_date < formData.training_start_date) {
+      return "Session date cannot be before training start date.";
+    }
+
+    if (formData.session_date && formData.session_date > formData.training_end_date) {
+      return "Session date cannot be after training end date.";
+    }
+
     return "";
   };
 
@@ -107,6 +136,8 @@ export default function TrainingAdmin() {
     setFormData({
       training_start_date: item.training_start_date || "",
       training_end_date: item.training_end_date || "",
+      session_date: item.session_date || "",
+      session_time: item.session_time ? item.session_time.slice(0, 5) : "",
       host_leader_id: item.host_leader_id || "",
       topic: item.topic || "",
       status: item.status || "scheduled",
@@ -132,33 +163,30 @@ export default function TrainingAdmin() {
 
     setSubmitting(true);
 
+    const payload = {
+      training_start_date: formData.training_start_date,
+      training_end_date: formData.training_end_date,
+      session_date: formData.session_date || null,
+      session_time: formData.session_time || null,
+      host_leader_id: formData.host_leader_id,
+      topic: formData.topic,
+      status: formData.status,
+      notes: formData.notes || null,
+    };
+
     let error = null;
 
     if (editingId) {
       const response = await supabase
         .from("weekly_trainings")
-        .update({
-          training_start_date: formData.training_start_date,
-          training_end_date: formData.training_end_date,
-          host_leader_id: formData.host_leader_id,
-          topic: formData.topic,
-          status: formData.status,
-          notes: formData.notes || null,
-        })
+        .update(payload)
         .eq("id", editingId);
 
       error = response.error;
     } else {
-      const response = await supabase.from("weekly_trainings").insert([
-        {
-          training_start_date: formData.training_start_date,
-          training_end_date: formData.training_end_date,
-          host_leader_id: formData.host_leader_id,
-          topic: formData.topic,
-          status: formData.status,
-          notes: formData.notes || null,
-        },
-      ]);
+      const response = await supabase
+        .from("weekly_trainings")
+        .insert([payload]);
 
       error = response.error;
     }
@@ -206,7 +234,7 @@ export default function TrainingAdmin() {
           {editingId ? "Edit Weekly Training" : "Add Weekly Training"}
         </h2>
         <p className="section-subtext">
-          Track training week, host leader, and topic.
+          Track the training window, session date, start time, host leader, and topic.
         </p>
 
         {pageError && <p className="error-text">{pageError}</p>}
@@ -232,6 +260,26 @@ export default function TrainingAdmin() {
                 value={formData.training_end_date}
                 onChange={handleChange}
                 required
+              />
+            </div>
+
+            <div className="form-field">
+              <label>Scheduled Training Date</label>
+              <input
+                type="date"
+                name="session_date"
+                value={formData.session_date}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div className="form-field">
+              <label>Scheduled Start Time</label>
+              <input
+                type="time"
+                name="session_time"
+                value={formData.session_time}
+                onChange={handleChange}
               />
             </div>
 
@@ -327,8 +375,10 @@ export default function TrainingAdmin() {
               <thead>
                 <tr>
                   <th>Host Leader</th>
-                  <th>Start Date</th>
-                  <th>End Date</th>
+                  <th>Training Start</th>
+                  <th>Training End</th>
+                  <th>Session Date</th>
+                  <th>Start Time</th>
                   <th>Topic</th>
                   <th>Status</th>
                   <th>Notes</th>
@@ -338,7 +388,7 @@ export default function TrainingAdmin() {
               <tbody>
                 {trainingItems.length === 0 ? (
                   <tr>
-                    <td colSpan="7">No training entries found.</td>
+                    <td colSpan="9">No training entries found.</td>
                   </tr>
                 ) : (
                   trainingItems.map((item) => (
@@ -346,6 +396,8 @@ export default function TrainingAdmin() {
                       <td>{item.leaders?.name || "Unknown"}</td>
                       <td>{item.training_start_date}</td>
                       <td>{item.training_end_date}</td>
+                      <td>{item.session_date || "—"}</td>
+                      <td>{formatTimeForDisplay(item.session_time)}</td>
                       <td>{item.topic}</td>
                       <td>
                         <span className={`status-pill status-${item.status}`}>
