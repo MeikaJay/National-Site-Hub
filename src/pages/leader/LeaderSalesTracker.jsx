@@ -85,13 +85,42 @@ function isThisWeek(dateString) {
   return input >= start && input <= end;
 }
 
+function isThisMonth(dateString) {
+  const input = new Date(`${dateString}T00:00:00`);
+  if (Number.isNaN(input.getTime())) return false;
+
+  const today = new Date();
+
+  return (
+    input.getFullYear() === today.getFullYear() &&
+    input.getMonth() === today.getMonth()
+  );
+}
+
+function isThisQuarter(dateString) {
+  const input = new Date(`${dateString}T00:00:00`);
+  if (Number.isNaN(input.getTime())) return false;
+
+  const today = new Date();
+  const currentQuarter = Math.floor(today.getMonth() / 3);
+  const inputQuarter = Math.floor(input.getMonth() / 3);
+
+  return (
+    input.getFullYear() === today.getFullYear() &&
+    inputQuarter === currentQuarter
+  );
+}
+
 function sortByDateDesc(items) {
-  return [...items].sort((a, b) => (b.sales_date || "").localeCompare(a.sales_date || ""));
+  return [...items].sort((a, b) =>
+    (b.sales_date || "").localeCompare(a.sales_date || "")
+  );
 }
 
 export default function LeaderSalesTracker() {
   const [activeTab, setActiveTab] = useState("site");
   const [dateView, setDateView] = useState("today");
+  const [selectedDate, setSelectedDate] = useState("");
   const [leaders, setLeaders] = useState([]);
   const [siteSalesItems, setSiteSalesItems] = useState([]);
   const [leaderSalesItems, setLeaderSalesItems] = useState([]);
@@ -151,11 +180,21 @@ export default function LeaderSalesTracker() {
     loadPageData();
   }, [loadPageData]);
 
-  const applyDateViewFilter = useCallback((item) => {
-    if (dateView === "today") return isSameDay(item.sales_date);
-    if (dateView === "week") return isThisWeek(item.sales_date);
-    return true;
-  }, [dateView]);
+  const applyDateViewFilter = useCallback(
+    (item) => {
+      if (selectedDate) {
+        return item.sales_date === selectedDate;
+      }
+
+      if (dateView === "today") return isSameDay(item.sales_date);
+      if (dateView === "week") return isThisWeek(item.sales_date);
+      if (dateView === "month") return isThisMonth(item.sales_date);
+      if (dateView === "quarter") return isThisQuarter(item.sales_date);
+
+      return true;
+    },
+    [dateView, selectedDate]
+  );
 
   const filteredSiteItems = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -163,8 +202,8 @@ export default function LeaderSalesTracker() {
     const items = siteSalesItems.filter((item) => {
       const matchesSearch =
         !term ||
-        (item.sales_date || "").toLowerCase().includes(term) ||
-        (item.notes || "").toLowerCase().includes(term);
+        (item.notes || "").toLowerCase().includes(term) ||
+        (item.sales_date || "").toLowerCase().includes(term);
 
       return matchesSearch && applyDateViewFilter(item);
     });
@@ -180,8 +219,8 @@ export default function LeaderSalesTracker() {
 
       const matchesSearch =
         !term ||
-        (item.sales_date || "").toLowerCase().includes(term) ||
         (item.notes || "").toLowerCase().includes(term) ||
+        (item.sales_date || "").toLowerCase().includes(term) ||
         (item.leaders?.name || "").toLowerCase().includes(term);
 
       return matchesLeader && matchesSearch && applyDateViewFilter(item);
@@ -232,7 +271,7 @@ export default function LeaderSalesTracker() {
   const activeSummary = activeTab === "site" ? siteSummary : leaderSummary;
 
   const trend = useMemo(() => {
-    if (activeItems.length < 2) return null;
+    if (activeItems.length < 2 || selectedDate) return null;
 
     const current = activeItems[0];
     const previous = activeItems[1];
@@ -266,7 +305,7 @@ export default function LeaderSalesTracker() {
       label: "No change vs previous entry",
       tone: "trend-same",
     };
-  }, [activeItems]);
+  }, [activeItems, selectedDate]);
 
   const topPerformers = useMemo(() => {
     if (activeTab !== "leader") return [];
@@ -319,46 +358,73 @@ export default function LeaderSalesTracker() {
                 <button
                   type="button"
                   className={`sales-tab-btn ${dateView === "today" ? "sales-tab-active" : ""}`}
-                  onClick={() => setDateView("today")}
+                  onClick={() => {
+                    setDateView("today");
+                    setSelectedDate("");
+                  }}
                 >
                   Today
                 </button>
                 <button
                   type="button"
                   className={`sales-tab-btn ${dateView === "week" ? "sales-tab-active" : ""}`}
-                  onClick={() => setDateView("week")}
+                  onClick={() => {
+                    setDateView("week");
+                    setSelectedDate("");
+                  }}
                 >
-                  This Week
+                  Current Week
                 </button>
                 <button
                   type="button"
-                  className={`sales-tab-btn ${dateView === "all" ? "sales-tab-active" : ""}`}
-                  onClick={() => setDateView("all")}
+                  className={`sales-tab-btn ${dateView === "month" ? "sales-tab-active" : ""}`}
+                  onClick={() => {
+                    setDateView("month");
+                    setSelectedDate("");
+                  }}
                 >
-                  All
+                  Current Month
+                </button>
+                <button
+                  type="button"
+                  className={`sales-tab-btn ${dateView === "quarter" ? "sales-tab-active" : ""}`}
+                  onClick={() => {
+                    setDateView("quarter");
+                    setSelectedDate("");
+                  }}
+                >
+                  Current Quarter
                 </button>
               </div>
             </div>
 
-            <div style={{ flex: "1 1 260px" }}>
+            <div style={{ flex: "1 1 220px" }}>
               <label style={{ display: "block", marginBottom: "8px", fontWeight: 700 }}>
-                Search
+                Pick a Date
+              </label>
+              <input
+                type="date"
+                className="sales-search-input"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+              />
+            </div>
+
+            <div style={{ flex: "1 1 220px" }}>
+              <label style={{ display: "block", marginBottom: "8px", fontWeight: 700 }}>
+                Search Notes
               </label>
               <input
                 type="text"
                 className="sales-search-input"
-                placeholder={
-                  activeTab === "site"
-                    ? "Search by date or notes"
-                    : "Search by leader, date, or notes"
-                }
+                placeholder="Search notes"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
 
             {activeTab === "leader" && (
-              <div style={{ flex: "1 1 260px" }}>
+              <div style={{ flex: "1 1 220px" }}>
                 <label style={{ display: "block", marginBottom: "8px", fontWeight: 700 }}>
                   Leader Filter
                 </label>
@@ -374,6 +440,18 @@ export default function LeaderSalesTracker() {
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {selectedDate && (
+              <div style={{ display: "flex", alignItems: "end" }}>
+                <button
+                  type="button"
+                  className="sales-tab-btn"
+                  onClick={() => setSelectedDate("")}
+                >
+                  Clear Date
+                </button>
               </div>
             )}
           </div>
@@ -416,7 +494,9 @@ export default function LeaderSalesTracker() {
               {topPerformers.map((item, index) => (
                 <div key={item.id} className="top-performer-row">
                   <div className="top-performer-rank">#{index + 1}</div>
-                  <div className="top-performer-name">{item.leaders?.name || "Unknown Leader"}</div>
+                  <div className="top-performer-name">
+                    {item.leaders?.name || "Unknown Leader"}
+                  </div>
                   <div className="top-performer-percent">{item.percent.toFixed(2)}%</div>
                 </div>
               ))}
@@ -427,9 +507,7 @@ export default function LeaderSalesTracker() {
         {loading ? (
           <div className="card">Loading sales data...</div>
         ) : activeItems.length === 0 ? (
-          <div className="card">
-            No sales data found for this view.
-          </div>
+          <div className="card">No sales data found for this view.</div>
         ) : (
           <div className="leader-sales-grid">
             {activeTab === "site"
@@ -442,7 +520,9 @@ export default function LeaderSalesTracker() {
                       <div className="leader-sales-top">
                         <div>
                           <div className="leader-sales-name">Site</div>
-                          <div className="leader-sales-date">{formatDateDisplay(item.sales_date)}</div>
+                          <div className="leader-sales-date">
+                            {formatDateDisplay(item.sales_date)}
+                          </div>
                         </div>
                         <span className={`status-pill ${status.className}`}>{status.label}</span>
                       </div>
@@ -483,7 +563,9 @@ export default function LeaderSalesTracker() {
                           <div className="leader-sales-name">
                             {item.leaders?.name || "Unknown Leader"}
                           </div>
-                          <div className="leader-sales-date">{formatDateDisplay(item.sales_date)}</div>
+                          <div className="leader-sales-date">
+                            {formatDateDisplay(item.sales_date)}
+                          </div>
                         </div>
                         <span className={`status-pill ${status.className}`}>{status.label}</span>
                       </div>
