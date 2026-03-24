@@ -40,6 +40,8 @@ export default function App() {
 <Route path="/leader/schedules" element={<LeaderSchedules />} />
 <Route path="/admin/pips" element={<PIPAdmin />} />
 <Route path="/leader/pips" element={<LeaderPIPs />} />
+<Route path="/admin/sales" element={<SalesTrackerAdmin />} />
+<Route path="/leader/sales" element={<LeaderSalesTracker />} />
     </Routes>
   );
 }
