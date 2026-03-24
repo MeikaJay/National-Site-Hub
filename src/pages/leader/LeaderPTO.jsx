@@ -15,6 +15,21 @@ const leaderLinks = [
   { to: "/leader/schedules", label: "Schedules" },
 ];
 
+const MAX_PTO_SLOTS = 2;
+
+function getDateRange(start, end) {
+  const dates = [];
+  const current = new Date(`${start}T00:00:00`);
+  const last = new Date(`${end}T00:00:00`);
+
+  while (current <= last) {
+    dates.push(current.toISOString().split("T")[0]);
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}
+
 function isAEPBlackout(dateString) {
   const date = new Date(`${dateString}T00:00:00`);
   const year = date.getFullYear();
@@ -118,12 +133,60 @@ export default function LeaderPTO() {
     [manualBlackoutMap]
   );
 
+  const approvedCoverageMap = useMemo(() => {
+    const counts = {};
+    const approvedItems = ptoItems.filter((item) => item.status === "approved");
+
+    approvedItems.forEach((item) => {
+      const dates = getDateRange(item.start_date, item.end_date);
+      dates.forEach((date) => {
+        counts[date] = (counts[date] || 0) + 1;
+      });
+    });
+
+    return counts;
+  }, [ptoItems]);
+
+  const getDayStatus = useCallback(
+    (dateString) => {
+      if (isBlockedDate(dateString)) {
+        return {
+          label: "Blackout",
+          className: "day-status-blackout",
+        };
+      }
+
+      const taken = approvedCoverageMap[dateString] || 0;
+      const remaining = Math.max(MAX_PTO_SLOTS - taken, 0);
+
+      if (taken >= MAX_PTO_SLOTS) {
+        return {
+          label: "Full",
+          className: "day-status-full",
+        };
+      }
+
+      if (taken === 1) {
+        return {
+          label: `${remaining} slot left`,
+          className: "day-status-limited",
+        };
+      }
+
+      return {
+        label: `${remaining} slots open`,
+        className: "day-status-open",
+      };
+    },
+    [approvedCoverageMap, isBlockedDate]
+  );
+
   return (
     <Layout title="Leadership PTO Calendar" links={leaderLinks}>
       <div className="card">
         <h2 className="section-title">Leadership Coverage Calendar</h2>
         <p className="section-subtext">
-          View leadership PTO already taken on the calendar.
+          Leaders can view PTO already taken and daily space available.
         </p>
 
         <div className="blackout-alert">
@@ -161,6 +224,19 @@ export default function LeaderPTO() {
             dayCellClassNames={(arg) => {
               const dateString = arg.date.toISOString().split("T")[0];
               return isBlockedDate(dateString) ? ["fc-blackout-day"] : [];
+            }}
+            dayCellContent={(arg) => {
+              const dateString = arg.date.toISOString().split("T")[0];
+              const dayStatus = getDayStatus(dateString);
+
+              return (
+                <div className="custom-day-cell">
+                  <div className="custom-day-number">{arg.dayNumberText}</div>
+                  <div className={`custom-day-status ${dayStatus.className}`}>
+                    {dayStatus.label}
+                  </div>
+                </div>
+              );
             }}
           />
         )}
