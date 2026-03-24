@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Layout from "../../components/Layout";
 import { supabase } from "../../lib/supabase";
 
@@ -26,6 +26,7 @@ function isAEPBlackout(dateString) {
 }
 
 export default function LeaderPTO() {
+  const [ptoItems, setPtoItems] = useState([]);
   const [blackoutDates, setBlackoutDates] = useState([]);
   const [events, setEvents] = useState([]);
   const [pageError, setPageError] = useState("");
@@ -43,6 +44,7 @@ export default function LeaderPTO() {
           start_date,
           end_date,
           status,
+          notes,
           leaders (name)
         `)
         .order("start_date", { ascending: true }),
@@ -66,6 +68,7 @@ export default function LeaderPTO() {
     const ptoData = ptoRes.data || [];
     const blackoutData = blackoutRes.data || [];
 
+    setPtoItems(ptoData);
     setBlackoutDates(blackoutData);
 
     const formattedEvents = ptoData.map((item) => {
@@ -77,6 +80,7 @@ export default function LeaderPTO() {
         title: item.leaders?.name || "Leader",
         start: item.start_date,
         end: endDate.toISOString().split("T")[0],
+        allDay: true,
         backgroundColor:
           item.status === "approved"
             ? "#22c55e"
@@ -89,6 +93,7 @@ export default function LeaderPTO() {
             : item.status === "pending"
             ? "#f59e0b"
             : "#94a3b8",
+        textColor: "#ffffff",
       };
     });
 
@@ -100,20 +105,25 @@ export default function LeaderPTO() {
     loadPageData();
   }, [loadPageData]);
 
-  const manualBlackoutMap = blackoutDates.reduce((acc, item) => {
-    acc[item.blackout_date] = item.reason || "Manual blackout date";
-    return acc;
-  }, {});
+  const manualBlackoutMap = useMemo(() => {
+    const map = {};
+    blackoutDates.forEach((item) => {
+      map[item.blackout_date] = item.reason || "Manual blackout date";
+    });
+    return map;
+  }, [blackoutDates]);
 
-  const isBlockedDate = (dateString) =>
-    isAEPBlackout(dateString) || !!manualBlackoutMap[dateString];
+  const isBlockedDate = useCallback(
+    (dateString) => isAEPBlackout(dateString) || !!manualBlackoutMap[dateString],
+    [manualBlackoutMap]
+  );
 
   return (
     <Layout title="Leadership PTO Calendar" links={leaderLinks}>
       <div className="card">
-        <h2 className="section-title">Leadership PTO Calendar</h2>
+        <h2 className="section-title">Leadership Coverage Calendar</h2>
         <p className="section-subtext">
-          View approved and pending PTO already on the calendar.
+          View leadership PTO already taken on the calendar.
         </p>
 
         <div className="blackout-alert">
@@ -146,6 +156,8 @@ export default function LeaderPTO() {
             initialView="dayGridMonth"
             events={events}
             height="auto"
+            displayEventTime={false}
+            dayMaxEvents={true}
             dayCellClassNames={(arg) => {
               const dateString = arg.date.toISOString().split("T")[0];
               return isBlockedDate(dateString) ? ["fc-blackout-day"] : [];
