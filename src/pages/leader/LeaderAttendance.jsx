@@ -138,6 +138,7 @@ export default function LeaderAttendance() {
   const [editingId, setEditingId] = useState(null);
   const [message, setMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [leaderFilter, setLeaderFilter] = useState("");
   const [openEmployeeKey, setOpenEmployeeKey] = useState("");
 
   useEffect(() => {
@@ -277,18 +278,31 @@ export default function LeaderAttendance() {
     return buildGroupedSummaries(attendanceRecords);
   }, [attendanceRecords]);
 
+  const leaderOptions = useMemo(() => {
+    const names = attendanceRecords
+      .map((record) => (record.leader_name || "").trim())
+      .filter(Boolean);
+
+    return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+  }, [attendanceRecords]);
+
   const filteredSummaries = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return groupedSummaries;
 
     return groupedSummaries.filter((employee) => {
-      return (
+      const matchesSearch =
+        !term ||
         (employee.employee_name || "").toLowerCase().includes(term) ||
         (employee.leader_name || "").toLowerCase().includes(term) ||
-        (employee.action_level?.label || "").toLowerCase().includes(term)
-      );
+        (employee.action_level?.label || "").toLowerCase().includes(term);
+
+      const matchesLeader =
+        !leaderFilter ||
+        (employee.leader_name || "").toLowerCase() === leaderFilter.toLowerCase();
+
+      return matchesSearch && matchesLeader;
     });
-  }, [groupedSummaries, searchTerm]);
+  }, [groupedSummaries, searchTerm, leaderFilter]);
 
   return (
     <Layout title="Attendance" links={leaderLinks}>
@@ -373,11 +387,6 @@ export default function LeaderAttendance() {
             />
           </div>
 
-          <div style={styles.pointsPreview}>
-            Points for selected type:{" "}
-            <strong>{getPointsForType(formData.attendance_type).toFixed(2)}</strong>
-          </div>
-
           <div style={styles.buttonRow}>
             <button type="submit" style={styles.primaryButton} disabled={saving}>
               {saving
@@ -387,155 +396,160 @@ export default function LeaderAttendance() {
                 : "Add Attendance Record"}
             </button>
 
-            <button
-              type="button"
-              style={styles.secondaryButton}
-              onClick={resetForm}
-            >
-              Clear
-            </button>
+            {editingId ? (
+              <button
+                type="button"
+                style={styles.secondaryButton}
+                onClick={resetForm}
+              >
+                Cancel Edit
+              </button>
+            ) : null}
           </div>
         </form>
 
         <div style={styles.listCard}>
           <div style={styles.listHeader}>
-            <h3 style={styles.sectionTitle}>Attendance Summary by Employee</h3>
-            <input
-              type="text"
-              placeholder="Search employee, leader, or action level"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={styles.searchInput}
-            />
+            <div>
+              <h3 style={styles.sectionTitle}>Employee Attendance Summary</h3>
+              <p style={styles.helperText}>
+                Rolling 365 totals update automatically based on attendance points.
+              </p>
+            </div>
+
+            <div style={styles.filterRow}>
+              <input
+                type="text"
+                placeholder="Search employee, leader, or action level"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={styles.searchInput}
+              />
+
+              <select
+                value={leaderFilter}
+                onChange={(e) => setLeaderFilter(e.target.value)}
+                style={styles.searchInput}
+              >
+                <option value="">All Leaders</option>
+                {leaderOptions.map((leader) => (
+                  <option key={leader} value={leader}>
+                    {leader}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {loading ? (
-            <p style={styles.pageText}>Loading attendance summary...</p>
+            <div style={styles.emptyState}>Loading attendance records...</div>
           ) : filteredSummaries.length === 0 ? (
-            <p style={styles.pageText}>No attendance records found.</p>
+            <div style={styles.emptyState}>No employee summaries found.</div>
           ) : (
-            <div style={styles.tableWrap}>
-              <table style={styles.table}>
-                <thead>
-                  <tr>
-                    <th style={styles.th}>Employee</th>
-                    <th style={styles.th}>Leader</th>
-                    <th style={styles.th}>Rolling 365 Total</th>
-                    <th style={styles.th}>Action Level</th>
-                    <th style={styles.th}>Last Occurrence</th>
-                    <th style={styles.th}>Event Count</th>
-                    <th style={styles.th}>Details</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredSummaries.map((employee) => {
-                    const employeeKey = employee.employee_name.toLowerCase();
-                    const isOpen = openEmployeeKey === employeeKey;
-
-                    return (
-                      <tr key={employeeKey}>
-                        <td style={styles.td}>{employee.employee_name}</td>
-                        <td style={styles.td}>{employee.leader_name || ""}</td>
-                        <td style={styles.td}>
-                          <strong>{employee.rolling_total.toFixed(2)}</strong>
-                        </td>
-                        <td style={styles.td}>
-                          <span
-                            style={{
-                              ...styles.statusBadge,
-                              background: employee.action_level.background,
-                              color: employee.action_level.color,
-                            }}
-                          >
-                            {employee.action_level.label}
-                          </span>
-                        </td>
-                        <td style={styles.td}>
-                          {employee.last_attendance_date || ""}
-                        </td>
-                        <td style={styles.td}>{employee.event_count}</td>
-                        <td style={styles.td}>
-                          <button
-                            type="button"
-                            style={styles.detailButton}
-                            onClick={() =>
-                              setOpenEmployeeKey(isOpen ? "" : employeeKey)
-                            }
-                          >
-                            {isOpen ? "Hide Details" : "View Details"}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-
+            <div style={styles.summaryList}>
               {filteredSummaries.map((employee) => {
                 const employeeKey = employee.employee_name.toLowerCase();
                 const isOpen = openEmployeeKey === employeeKey;
 
-                if (!isOpen) return null;
-
                 return (
-                  <div key={`${employeeKey}-details`} style={styles.detailsCard}>
-                    <h4 style={styles.detailsTitle}>
-                      {employee.employee_name} Attendance History
-                    </h4>
+                  <div key={employeeKey} style={styles.summaryCard}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenEmployeeKey((prev) =>
+                          prev === employeeKey ? "" : employeeKey
+                        )
+                      }
+                      style={styles.summaryHeader}
+                    >
+                      <div style={styles.summaryTopRow}>
+                        <div>
+                          <div style={styles.employeeName}>{employee.employee_name}</div>
+                          <div style={styles.employeeMeta}>
+                            Leader: {employee.leader_name || "Not provided"}
+                          </div>
+                        </div>
 
-                    <div style={styles.tableWrap}>
-                      <table style={styles.innerTable}>
-                        <thead>
-                          <tr>
-                            <th style={styles.th}>Date</th>
-                            <th style={styles.th}>Type</th>
-                            <th style={styles.th}>Points</th>
-                            <th style={styles.th}>Leader</th>
-                            <th style={styles.th}>Notes</th>
-                            <th style={styles.th}>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {employee.all_records.map((record) => (
-                            <tr key={record.id}>
-                              <td style={styles.td}>
-                                {record.attendance_date || ""}
-                              </td>
-                              <td style={styles.td}>
-                                {record.attendance_type || ""}
-                              </td>
-                              <td style={styles.td}>
-                                {itemOrZero(record.occurrence_points).toFixed(2)}
-                              </td>
-                              <td style={styles.td}>
-                                {record.leader_name || ""}
-                              </td>
-                              <td style={styles.td}>
-                                {record.notes || ""}
-                              </td>
-                              <td style={styles.td}>
-                                <div style={styles.actionButtons}>
-                                  <button
-                                    type="button"
-                                    style={styles.editButton}
-                                    onClick={() => handleEdit(record)}
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    style={styles.deleteButton}
-                                    onClick={() => handleDelete(record.id)}
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                        <span
+                          style={{
+                            ...styles.actionPill,
+                            color: employee.action_level.color,
+                            background: employee.action_level.background,
+                          }}
+                        >
+                          {employee.action_level.label}
+                        </span>
+                      </div>
+
+                      <div style={styles.summaryStats}>
+                        <div style={styles.statBox}>
+                          <div style={styles.statLabel}>Rolling Total</div>
+                          <div style={styles.statValue}>{employee.rolling_total}</div>
+                        </div>
+
+                        <div style={styles.statBox}>
+                          <div style={styles.statLabel}>Events</div>
+                          <div style={styles.statValue}>{employee.event_count}</div>
+                        </div>
+
+                        <div style={styles.statBox}>
+                          <div style={styles.statLabel}>Last Attendance</div>
+                          <div style={styles.statValue}>
+                            {employee.last_attendance_date || "No recent records"}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+
+                    {isOpen ? (
+                      <div style={styles.recordsWrap}>
+                        <div style={styles.recordsHeader}>Attendance Records</div>
+
+                        <div style={styles.tableWrap}>
+                          <table style={styles.table}>
+                            <thead>
+                              <tr>
+                                <th style={styles.th}>Date</th>
+                                <th style={styles.th}>Type</th>
+                                <th style={styles.th}>Points</th>
+                                <th style={styles.th}>Notes</th>
+                                <th style={styles.th}>Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {employee.all_records.map((record) => (
+                                <tr key={record.id}>
+                                  <td style={styles.td}>{record.attendance_date || "—"}</td>
+                                  <td style={styles.td}>{record.attendance_type || "—"}</td>
+                                  <td style={styles.td}>
+                                    {itemOrZero(record.occurrence_points)}
+                                  </td>
+                                  <td style={styles.td}>{record.notes || "—"}</td>
+                                  <td style={styles.td}>
+                                    <div style={styles.tableButtonRow}>
+                                      <button
+                                        type="button"
+                                        style={styles.inlineEditButton}
+                                        onClick={() => handleEdit(record)}
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        type="button"
+                                        style={styles.inlineDeleteButton}
+                                        onClick={() => handleDelete(record.id)}
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}
@@ -555,55 +569,54 @@ const styles = {
   },
   headerCard: {
     background: "#ffffff",
-    borderRadius: "18px",
+    borderRadius: "16px",
     padding: "24px",
-    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
   },
   pageTitle: {
     margin: 0,
-    fontSize: "30px",
-    fontWeight: "800",
+    fontSize: "28px",
+    fontWeight: 800,
     color: "#0f172a",
   },
   pageText: {
     marginTop: "8px",
     marginBottom: 0,
-    color: "#475569",
     fontSize: "15px",
-    lineHeight: "1.5",
+    color: "#475569",
+    lineHeight: 1.6,
   },
   message: {
-    padding: "14px 16px",
+    background: "#eff6ff",
+    color: "#1d4ed8",
+    border: "1px solid #bfdbfe",
     borderRadius: "12px",
-    background: "#ecfdf5",
-    color: "#166534",
-    fontWeight: "600",
+    padding: "14px 16px",
+    fontWeight: 600,
   },
   formCard: {
     background: "#ffffff",
-    borderRadius: "18px",
+    borderRadius: "16px",
     padding: "24px",
-    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
   },
   listCard: {
     background: "#ffffff",
-    borderRadius: "18px",
+    borderRadius: "16px",
     padding: "24px",
-    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
   },
   sectionTitle: {
-    marginTop: 0,
-    marginBottom: "18px",
-    fontSize: "22px",
-    fontWeight: "800",
+    margin: 0,
+    fontSize: "20px",
+    fontWeight: 800,
     color: "#0f172a",
   },
-  detailsTitle: {
-    marginTop: 0,
-    marginBottom: "16px",
-    fontSize: "18px",
-    fontWeight: "800",
-    color: "#0f172a",
+  helperText: {
+    marginTop: "6px",
+    marginBottom: 0,
+    fontSize: "14px",
+    color: "#64748b",
   },
   grid: {
     display: "grid",
@@ -613,9 +626,9 @@ const styles = {
   label: {
     display: "block",
     marginBottom: "8px",
-    fontWeight: "700",
-    color: "#334155",
     fontSize: "14px",
+    fontWeight: 700,
+    color: "#334155",
   },
   input: {
     width: "100%",
@@ -623,8 +636,10 @@ const styles = {
     borderRadius: "12px",
     border: "1px solid #cbd5e1",
     fontSize: "14px",
+    color: "#0f172a",
+    outline: "none",
     boxSizing: "border-box",
-    background: "#fff",
+    background: "#ffffff",
   },
   textarea: {
     width: "100%",
@@ -632,56 +647,150 @@ const styles = {
     borderRadius: "12px",
     border: "1px solid #cbd5e1",
     fontSize: "14px",
-    boxSizing: "border-box",
+    color: "#0f172a",
+    outline: "none",
     resize: "vertical",
-    background: "#fff",
-  },
-  pointsPreview: {
-    marginTop: "16px",
-    padding: "12px 14px",
-    borderRadius: "12px",
-    background: "#eff6ff",
-    color: "#1d4ed8",
-    fontWeight: "700",
+    boxSizing: "border-box",
+    background: "#ffffff",
   },
   buttonRow: {
     display: "flex",
     gap: "12px",
-    marginTop: "18px",
     flexWrap: "wrap",
+    marginTop: "18px",
   },
   primaryButton: {
-    padding: "12px 18px",
+    background: "#2563eb",
+    color: "#ffffff",
     border: "none",
     borderRadius: "12px",
-    background: "#0f172a",
-    color: "#fff",
-    fontWeight: "700",
+    padding: "12px 18px",
+    fontSize: "14px",
+    fontWeight: 700,
     cursor: "pointer",
   },
   secondaryButton: {
-    padding: "12px 18px",
-    border: "1px solid #cbd5e1",
-    borderRadius: "12px",
-    background: "#fff",
+    background: "#e2e8f0",
     color: "#0f172a",
-    fontWeight: "700",
+    border: "none",
+    borderRadius: "12px",
+    padding: "12px 18px",
+    fontSize: "14px",
+    fontWeight: 700,
     cursor: "pointer",
   },
   listHeader: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+    gap: "16px",
+    flexWrap: "wrap",
+    marginBottom: "20px",
+  },
+  filterRow: {
+    display: "flex",
     gap: "12px",
-    marginBottom: "16px",
     flexWrap: "wrap",
   },
   searchInput: {
-    minWidth: "260px",
+    minWidth: "220px",
     padding: "12px 14px",
     borderRadius: "12px",
     border: "1px solid #cbd5e1",
     fontSize: "14px",
+    color: "#0f172a",
+    outline: "none",
+    background: "#ffffff",
+  },
+  emptyState: {
+    background: "#f8fafc",
+    border: "1px dashed #cbd5e1",
+    borderRadius: "14px",
+    padding: "28px",
+    textAlign: "center",
+    color: "#64748b",
+    fontWeight: 600,
+  },
+  summaryList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "16px",
+  },
+  summaryCard: {
+    border: "1px solid #e2e8f0",
+    borderRadius: "16px",
+    overflow: "hidden",
+    background: "#ffffff",
+  },
+  summaryHeader: {
+    width: "100%",
+    border: "none",
+    background: "#ffffff",
+    padding: "18px",
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  summaryTopRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "16px",
+    flexWrap: "wrap",
+  },
+  employeeName: {
+    fontSize: "18px",
+    fontWeight: 800,
+    color: "#0f172a",
+  },
+  employeeMeta: {
+    marginTop: "6px",
+    fontSize: "14px",
+    color: "#64748b",
+  },
+  actionPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: "999px",
+    padding: "8px 12px",
+    fontSize: "13px",
+    fontWeight: 800,
+    whiteSpace: "nowrap",
+  },
+  summaryStats: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+    gap: "12px",
+    marginTop: "16px",
+  },
+  statBox: {
+    background: "#f8fafc",
+    borderRadius: "12px",
+    padding: "14px",
+    border: "1px solid #e2e8f0",
+  },
+  statLabel: {
+    fontSize: "12px",
+    fontWeight: 700,
+    color: "#64748b",
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+  },
+  statValue: {
+    marginTop: "8px",
+    fontSize: "16px",
+    fontWeight: 800,
+    color: "#0f172a",
+  },
+  recordsWrap: {
+    borderTop: "1px solid #e2e8f0",
+    padding: "18px",
+    background: "#f8fafc",
+  },
+  recordsHeader: {
+    fontSize: "16px",
+    fontWeight: 800,
+    color: "#0f172a",
+    marginBottom: "12px",
   },
   tableWrap: {
     overflowX: "auto",
@@ -689,74 +798,49 @@ const styles = {
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    minWidth: "1100px",
-  },
-  innerTable: {
-    width: "100%",
-    borderCollapse: "collapse",
-    minWidth: "900px",
+    minWidth: "760px",
+    background: "#ffffff",
+    borderRadius: "12px",
+    overflow: "hidden",
   },
   th: {
     textAlign: "left",
     padding: "12px",
-    borderBottom: "2px solid #e2e8f0",
+    background: "#e2e8f0",
     color: "#334155",
     fontSize: "13px",
-    fontWeight: "800",
-    background: "#f8fafc",
+    fontWeight: 800,
   },
   td: {
     padding: "12px",
-    borderBottom: "1px solid #e2e8f0",
-    color: "#0f172a",
+    borderTop: "1px solid #e2e8f0",
     fontSize: "14px",
+    color: "#0f172a",
     verticalAlign: "top",
   },
-  detailsCard: {
-    marginTop: "20px",
-    padding: "20px",
-    background: "#f8fafc",
-    borderRadius: "16px",
-    border: "1px solid #e2e8f0",
-  },
-  statusBadge: {
-    display: "inline-block",
-    padding: "8px 10px",
-    borderRadius: "999px",
-    fontWeight: "800",
-    fontSize: "12px",
-    whiteSpace: "nowrap",
-  },
-  detailButton: {
-    padding: "8px 12px",
-    border: "none",
-    borderRadius: "10px",
-    background: "#e2e8f0",
-    color: "#0f172a",
-    fontWeight: "700",
-    cursor: "pointer",
-  },
-  actionButtons: {
+  tableButtonRow: {
     display: "flex",
     gap: "8px",
     flexWrap: "wrap",
   },
-  editButton: {
-    padding: "8px 12px",
-    border: "none",
-    borderRadius: "10px",
+  inlineEditButton: {
     background: "#dbeafe",
     color: "#1d4ed8",
-    fontWeight: "700",
-    cursor: "pointer",
-  },
-  deleteButton: {
-    padding: "8px 12px",
     border: "none",
     borderRadius: "10px",
+    padding: "8px 10px",
+    fontSize: "13px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  inlineDeleteButton: {
     background: "#fee2e2",
     color: "#b91c1c",
-    fontWeight: "700",
+    border: "none",
+    borderRadius: "10px",
+    padding: "8px 10px",
+    fontSize: "13px",
+    fontWeight: 700,
     cursor: "pointer",
   },
 };
