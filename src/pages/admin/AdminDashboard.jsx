@@ -2,9 +2,7 @@ import AdminNationalHubEditor from "../../components/AdminNationalHubEditor";
 import Layout from "../../components/Layout";
 
 const adminLinks = [
-  { to: "/admin", label: "Dashboard" },
-  { to: "/admin/leaders", label: "Leaders" },
-  { to: "/admin/agents", label: "Agents" },
+  { to: "/admin", label: "Dashboard" }, 
   { to: "/admin/pto", label: "Leadership PTO" },
   { to: "/admin/training", label: "Weekly Training" },
   { to: "/admin/attendance", label: "Attendance" },
