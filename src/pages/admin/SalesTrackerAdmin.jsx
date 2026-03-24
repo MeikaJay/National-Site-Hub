@@ -9,7 +9,14 @@ const adminLinks = [
   { to: "/admin/sales", label: "Daily Sales" },
 ];
 
-const emptyForm = {
+const emptySiteForm = {
+  sales_date: "",
+  sales_target: "",
+  points_achieved: "",
+  notes: "",
+};
+
+const emptyLeaderForm = {
   sales_date: "",
   leader_id: "",
   sales_target: "",
@@ -20,44 +27,36 @@ const emptyForm = {
 function getPercentToTarget(target, achieved) {
   const targetNum = Number(target || 0);
   const achievedNum = Number(achieved || 0);
-
   if (targetNum <= 0) return 0;
   return Number(((achievedNum / targetNum) * 100).toFixed(2));
 }
 
 function getStatusConfig(percent) {
   if (percent >= 100) {
-    return {
-      label: "Green",
-      className: "status-green",
-    };
+    return { label: "Green", className: "status-green" };
   }
-
   if (percent >= 85) {
-    return {
-      label: "Yellow",
-      className: "status-yellow",
-    };
+    return { label: "Yellow", className: "status-yellow" };
   }
-
   if (percent >= 70) {
-    return {
-      label: "Orange",
-      className: "status-orange",
-    };
+    return { label: "Orange", className: "status-orange" };
   }
-
-  return {
-    label: "Red",
-    className: "status-red",
-  };
+  return { label: "Red", className: "status-red" };
 }
 
 export default function SalesTrackerAdmin() {
+  const [activeTab, setActiveTab] = useState("site");
+
   const [leaders, setLeaders] = useState([]);
-  const [salesItems, setSalesItems] = useState([]);
-  const [formData, setFormData] = useState(emptyForm);
-  const [editingId, setEditingId] = useState(null);
+  const [siteSalesItems, setSiteSalesItems] = useState([]);
+  const [leaderSalesItems, setLeaderSalesItems] = useState([]);
+
+  const [siteForm, setSiteForm] = useState(emptySiteForm);
+  const [leaderForm, setLeaderForm] = useState(emptyLeaderForm);
+
+  const [editingSiteId, setEditingSiteId] = useState(null);
+  const [editingLeaderId, setEditingLeaderId] = useState(null);
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [pageError, setPageError] = useState("");
@@ -66,7 +65,7 @@ export default function SalesTrackerAdmin() {
     setLoading(true);
     setPageError("");
 
-    const [leadersRes, salesRes] = await Promise.all([
+    const [leadersRes, siteRes, leaderRes] = await Promise.all([
       supabase
         .from("leaders")
         .select("id, name")
@@ -74,7 +73,12 @@ export default function SalesTrackerAdmin() {
         .order("name", { ascending: true }),
 
       supabase
-        .from("daily_sales_tracker")
+        .from("site_daily_sales")
+        .select("id, sales_date, sales_target, points_achieved, notes, created_at")
+        .order("sales_date", { ascending: false }),
+
+      supabase
+        .from("leader_daily_sales")
         .select(`
           id,
           sales_date,
@@ -89,10 +93,11 @@ export default function SalesTrackerAdmin() {
         .order("created_at", { ascending: false }),
     ]);
 
-    if (leadersRes.error || salesRes.error) {
+    if (leadersRes.error || siteRes.error || leaderRes.error) {
       setPageError(
         leadersRes.error?.message ||
-          salesRes.error?.message ||
+          siteRes.error?.message ||
+          leaderRes.error?.message ||
           "Something went wrong loading sales data."
       );
       setLoading(false);
@@ -100,7 +105,8 @@ export default function SalesTrackerAdmin() {
     }
 
     setLeaders(leadersRes.data || []);
-    setSalesItems(salesRes.data || []);
+    setSiteSalesItems(siteRes.data || []);
+    setLeaderSalesItems(leaderRes.data || []);
     setLoading(false);
   }, []);
 
@@ -108,17 +114,15 @@ export default function SalesTrackerAdmin() {
     loadPageData();
   }, [loadPageData]);
 
-  const dashboardSummary = useMemo(() => {
-    const totalTarget = salesItems.reduce(
+  const siteSummary = useMemo(() => {
+    const totalTarget = siteSalesItems.reduce(
       (sum, item) => sum + Number(item.sales_target || 0),
       0
     );
-
-    const totalAchieved = salesItems.reduce(
+    const totalAchieved = siteSalesItems.reduce(
       (sum, item) => sum + Number(item.points_achieved || 0),
       0
     );
-
     const percent = getPercentToTarget(totalTarget, totalAchieved);
 
     return {
@@ -127,25 +131,64 @@ export default function SalesTrackerAdmin() {
       percent,
       status: getStatusConfig(percent),
     };
-  }, [salesItems]);
+  }, [siteSalesItems]);
 
-  const handleChange = (e) => {
+  const leaderSummary = useMemo(() => {
+    const totalTarget = leaderSalesItems.reduce(
+      (sum, item) => sum + Number(item.sales_target || 0),
+      0
+    );
+    const totalAchieved = leaderSalesItems.reduce(
+      (sum, item) => sum + Number(item.points_achieved || 0),
+      0
+    );
+    const percent = getPercentToTarget(totalTarget, totalAchieved);
+
+    return {
+      totalTarget: totalTarget.toFixed(2),
+      totalAchieved: totalAchieved.toFixed(2),
+      percent,
+      status: getStatusConfig(percent),
+    };
+  }, [leaderSalesItems]);
+
+  const handleSiteChange = (e) => {
     const { name, value } = e.target;
-
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setSiteForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const resetForm = () => {
-    setFormData(emptyForm);
-    setEditingId(null);
+  const handleLeaderChange = (e) => {
+    const { name, value } = e.target;
+    setLeaderForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleEdit = (item) => {
-    setEditingId(item.id);
-    setFormData({
+  const resetSiteForm = () => {
+    setSiteForm(emptySiteForm);
+    setEditingSiteId(null);
+  };
+
+  const resetLeaderForm = () => {
+    setLeaderForm(emptyLeaderForm);
+    setEditingLeaderId(null);
+  };
+
+  const handleEditSite = (item) => {
+    setActiveTab("site");
+    setEditingSiteId(item.id);
+    setSiteForm({
+      sales_date: item.sales_date || "",
+      sales_target: item.sales_target ?? "",
+      points_achieved: item.points_achieved ?? "",
+      notes: item.notes || "",
+    });
+    setPageError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleEditLeader = (item) => {
+    setActiveTab("leader");
+    setEditingLeaderId(item.id);
+    setLeaderForm({
       sales_date: item.sales_date || "",
       leader_id: item.leader_id || "",
       sales_target: item.sales_target ?? "",
@@ -156,57 +199,45 @@ export default function SalesTrackerAdmin() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleCancelEdit = () => {
-    resetForm();
-    setPageError("");
-  };
-
-  const handleSubmit = async (e) => {
+  const handleSubmitSite = async (e) => {
     e.preventDefault();
     setPageError("");
 
-    if (!formData.sales_date || !formData.leader_id) {
-      setPageError("Please select a date and leader.");
+    if (!siteForm.sales_date) {
+      setPageError("Please select a date.");
       return;
     }
-
-    if (formData.sales_target === "" || Number(formData.sales_target) < 0) {
-      setPageError("Please enter a valid sales target.");
+    if (siteForm.sales_target === "" || Number(siteForm.sales_target) < 0) {
+      setPageError("Please enter a valid site sales target.");
       return;
     }
-
     if (
-      formData.points_achieved === "" ||
-      Number(formData.points_achieved) < 0
+      siteForm.points_achieved === "" ||
+      Number(siteForm.points_achieved) < 0
     ) {
-      setPageError("Please enter valid points achieved.");
+      setPageError("Please enter valid site points achieved.");
       return;
     }
 
     setSubmitting(true);
 
     const payload = {
-      sales_date: formData.sales_date,
-      leader_id: formData.leader_id,
-      sales_target: Number(formData.sales_target),
-      points_achieved: Number(formData.points_achieved),
-      notes: formData.notes || null,
+      sales_date: siteForm.sales_date,
+      sales_target: Number(siteForm.sales_target),
+      points_achieved: Number(siteForm.points_achieved),
+      notes: siteForm.notes || null,
     };
 
     let error = null;
 
-    if (editingId) {
+    if (editingSiteId) {
       const res = await supabase
-        .from("daily_sales_tracker")
+        .from("site_daily_sales")
         .update(payload)
-        .eq("id", editingId);
-
+        .eq("id", editingSiteId);
       error = res.error;
     } else {
-      const res = await supabase
-        .from("daily_sales_tracker")
-        .insert([payload]);
-
+      const res = await supabase.from("site_daily_sales").insert([payload]);
       error = res.error;
     }
 
@@ -216,21 +247,85 @@ export default function SalesTrackerAdmin() {
       return;
     }
 
-    resetForm();
+    resetSiteForm();
     await loadPageData();
     setSubmitting(false);
   };
 
-  const handleRemove = async (id) => {
-    const confirmed = window.confirm(
-      "Are you sure you want to remove this sales entry?"
-    );
-    if (!confirmed) return;
-
+  const handleSubmitLeader = async (e) => {
+    e.preventDefault();
     setPageError("");
 
+    if (!leaderForm.sales_date || !leaderForm.leader_id) {
+      setPageError("Please select a date and leader.");
+      return;
+    }
+    if (leaderForm.sales_target === "" || Number(leaderForm.sales_target) < 0) {
+      setPageError("Please enter a valid leader sales target.");
+      return;
+    }
+    if (
+      leaderForm.points_achieved === "" ||
+      Number(leaderForm.points_achieved) < 0
+    ) {
+      setPageError("Please enter valid leader points achieved.");
+      return;
+    }
+
+    setSubmitting(true);
+
+    const payload = {
+      sales_date: leaderForm.sales_date,
+      leader_id: leaderForm.leader_id,
+      sales_target: Number(leaderForm.sales_target),
+      points_achieved: Number(leaderForm.points_achieved),
+      notes: leaderForm.notes || null,
+    };
+
+    let error = null;
+
+    if (editingLeaderId) {
+      const res = await supabase
+        .from("leader_daily_sales")
+        .update(payload)
+        .eq("id", editingLeaderId);
+      error = res.error;
+    } else {
+      const res = await supabase.from("leader_daily_sales").insert([payload]);
+      error = res.error;
+    }
+
+    if (error) {
+      setPageError(error.message);
+      setSubmitting(false);
+      return;
+    }
+
+    resetLeaderForm();
+    await loadPageData();
+    setSubmitting(false);
+  };
+
+  const handleRemoveSite = async (id) => {
+    const confirmed = window.confirm("Remove this site sales entry?");
+    if (!confirmed) return;
+
+    const { error } = await supabase.from("site_daily_sales").delete().eq("id", id);
+    if (error) {
+      setPageError(error.message);
+      return;
+    }
+
+    if (editingSiteId === id) resetSiteForm();
+    await loadPageData();
+  };
+
+  const handleRemoveLeader = async (id) => {
+    const confirmed = window.confirm("Remove this leader sales entry?");
+    if (!confirmed) return;
+
     const { error } = await supabase
-      .from("daily_sales_tracker")
+      .from("leader_daily_sales")
       .delete()
       .eq("id", id);
 
@@ -239,158 +334,326 @@ export default function SalesTrackerAdmin() {
       return;
     }
 
-    if (editingId === id) {
-      resetForm();
-    }
-
+    if (editingLeaderId === id) resetLeaderForm();
     await loadPageData();
   };
 
   return (
     <Layout title="Daily Sales" links={adminLinks}>
       <div className="card">
-        <h2 className="section-title">
-          {editingId ? "Edit Daily Sales Entry" : "Add Daily Sales Entry"}
-        </h2>
+        <h2 className="section-title">Daily Sales Tracker</h2>
         <p className="section-subtext">
-          Enter target and points achieved. Percent to target will calculate automatically.
+          Track site performance and individual leader performance without adding extra pages.
         </p>
+
+        <div className="sales-tab-row">
+          <button
+            type="button"
+            className={`sales-tab-btn ${activeTab === "site" ? "sales-tab-active" : ""}`}
+            onClick={() => setActiveTab("site")}
+          >
+            Site Sales
+          </button>
+          <button
+            type="button"
+            className={`sales-tab-btn ${activeTab === "leader" ? "sales-tab-active" : ""}`}
+            onClick={() => setActiveTab("leader")}
+          >
+            Leader Sales
+          </button>
+        </div>
 
         {pageError && <p className="error-text">{pageError}</p>}
 
-        <form onSubmit={handleSubmit} className="pto-form">
-          <div className="form-grid">
+        {activeTab === "site" ? (
+          <form onSubmit={handleSubmitSite} className="pto-form">
+            <div className="form-grid">
+              <div className="form-field">
+                <label>Date</label>
+                <input
+                  type="date"
+                  name="sales_date"
+                  value={siteForm.sales_date}
+                  onChange={handleSiteChange}
+                  required
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Site Sales Target</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  name="sales_target"
+                  value={siteForm.sales_target}
+                  onChange={handleSiteChange}
+                  required
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Site Points Achieved</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  name="points_achieved"
+                  value={siteForm.points_achieved}
+                  onChange={handleSiteChange}
+                  required
+                />
+              </div>
+            </div>
+
             <div className="form-field">
-              <label>Date</label>
-              <input
-                type="date"
-                name="sales_date"
-                value={formData.sales_date}
-                onChange={handleChange}
-                required
+              <label>Notes</label>
+              <textarea
+                name="notes"
+                value={siteForm.notes}
+                onChange={handleSiteChange}
+                rows="3"
+                placeholder="Optional notes"
               />
             </div>
 
-            <div className="form-field">
-              <label>Leader</label>
-              <select
-                name="leader_id"
-                value={formData.leader_id}
-                onChange={handleChange}
-                required
-              >
-                <option value="">Select leader</option>
-                {leaders.map((leader) => (
-                  <option key={leader.id} value={leader.id}>
-                    {leader.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-field">
-              <label>Sales Target</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                name="sales_target"
-                value={formData.sales_target}
-                onChange={handleChange}
-                placeholder="Enter target"
-                required
-              />
-            </div>
-
-            <div className="form-field">
-              <label>Points Achieved</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                name="points_achieved"
-                value={formData.points_achieved}
-                onChange={handleChange}
-                placeholder="Enter achieved"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="form-field">
-            <label>Notes</label>
-            <textarea
-              name="notes"
-              value={formData.notes}
-              onChange={handleChange}
-              rows="3"
-              placeholder="Optional notes"
-            />
-          </div>
-
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            <button type="submit" className="primary-btn" disabled={submitting}>
-              {submitting
-                ? editingId
-                  ? "Updating..."
-                  : "Saving..."
-                : editingId
-                ? "Update Entry"
-                : "Add Entry"}
-            </button>
-
-            {editingId && (
-              <button
-                type="button"
-                className="secondary-btn"
-                onClick={handleCancelEdit}
-              >
-                Cancel
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <button type="submit" className="primary-btn" disabled={submitting}>
+                {submitting
+                  ? editingSiteId
+                    ? "Updating..."
+                    : "Saving..."
+                  : editingSiteId
+                  ? "Update Site Entry"
+                  : "Add Site Entry"}
               </button>
-            )}
-          </div>
-        </form>
+
+              {editingSiteId && (
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={resetSiteForm}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={handleSubmitLeader} className="pto-form">
+            <div className="form-grid">
+              <div className="form-field">
+                <label>Date</label>
+                <input
+                  type="date"
+                  name="sales_date"
+                  value={leaderForm.sales_date}
+                  onChange={handleLeaderChange}
+                  required
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Leader</label>
+                <select
+                  name="leader_id"
+                  value={leaderForm.leader_id}
+                  onChange={handleLeaderChange}
+                  required
+                >
+                  <option value="">Select leader</option>
+                  {leaders.map((leader) => (
+                    <option key={leader.id} value={leader.id}>
+                      {leader.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-field">
+                <label>Leader Sales Target</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  name="sales_target"
+                  value={leaderForm.sales_target}
+                  onChange={handleLeaderChange}
+                  required
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Leader Points Achieved</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  name="points_achieved"
+                  value={leaderForm.points_achieved}
+                  onChange={handleLeaderChange}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="form-field">
+              <label>Notes</label>
+              <textarea
+                name="notes"
+                value={leaderForm.notes}
+                onChange={handleLeaderChange}
+                rows="3"
+                placeholder="Optional notes"
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <button type="submit" className="primary-btn" disabled={submitting}>
+                {submitting
+                  ? editingLeaderId
+                    ? "Updating..."
+                    : "Saving..."
+                  : editingLeaderId
+                  ? "Update Leader Entry"
+                  : "Add Leader Entry"}
+              </button>
+
+              {editingLeaderId && (
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={resetLeaderForm}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          </form>
+        )}
       </div>
 
       <div className="card" style={{ marginTop: "20px" }}>
-        <h2 className="section-title">Sales Snapshot</h2>
-        <p className="section-subtext">
-          Overall performance based on all visible entries.
-        </p>
+        <h2 className="section-title">
+          {activeTab === "site" ? "Site Sales Snapshot" : "Leader Sales Snapshot"}
+        </h2>
 
         <div className="sales-summary-grid">
           <div className="sales-summary-box">
             <div className="sales-summary-label">Total Target</div>
-            <div className="sales-summary-value">{dashboardSummary.totalTarget}</div>
+            <div className="sales-summary-value">
+              {activeTab === "site" ? siteSummary.totalTarget : leaderSummary.totalTarget}
+            </div>
           </div>
 
           <div className="sales-summary-box">
             <div className="sales-summary-label">Total Achieved</div>
-            <div className="sales-summary-value">{dashboardSummary.totalAchieved}</div>
+            <div className="sales-summary-value">
+              {activeTab === "site"
+                ? siteSummary.totalAchieved
+                : leaderSummary.totalAchieved}
+            </div>
           </div>
 
           <div className="sales-summary-box">
             <div className="sales-summary-label">Percent to Target</div>
             <div className="sales-summary-value">
-              {dashboardSummary.percent.toFixed(2)}%
+              {(activeTab === "site"
+                ? siteSummary.percent
+                : leaderSummary.percent
+              ).toFixed(2)}
+              %
             </div>
           </div>
 
-          <div className={`sales-summary-box ${dashboardSummary.status.className}`}>
+          <div
+            className={`sales-summary-box ${
+              activeTab === "site"
+                ? siteSummary.status.className
+                : leaderSummary.status.className
+            }`}
+          >
             <div className="sales-summary-label">Status</div>
-            <div className="sales-summary-value">{dashboardSummary.status.label}</div>
+            <div className="sales-summary-value">
+              {activeTab === "site"
+                ? siteSummary.status.label
+                : leaderSummary.status.label}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="card" style={{ marginTop: "20px" }}>
-        <h2 className="section-title">Daily Sales Entries</h2>
-        <p className="section-subtext">
-          View, edit, and remove daily sales records.
-        </p>
+        <h2 className="section-title">
+          {activeTab === "site" ? "Site Daily Sales Entries" : "Leader Daily Sales Entries"}
+        </h2>
 
         {loading ? (
           <p>Loading sales entries...</p>
+        ) : activeTab === "site" ? (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Target</th>
+                  <th>Achieved</th>
+                  <th>Percent to Target</th>
+                  <th>Status</th>
+                  <th>Notes</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {siteSalesItems.length === 0 ? (
+                  <tr>
+                    <td colSpan="7">No site sales entries found.</td>
+                  </tr>
+                ) : (
+                  siteSalesItems.map((item) => {
+                    const percent = getPercentToTarget(
+                      item.sales_target,
+                      item.points_achieved
+                    );
+                    const status = getStatusConfig(percent);
+
+                    return (
+                      <tr key={item.id}>
+                        <td>{item.sales_date}</td>
+                        <td>{Number(item.sales_target || 0).toFixed(2)}</td>
+                        <td>{Number(item.points_achieved || 0).toFixed(2)}</td>
+                        <td>{percent.toFixed(2)}%</td>
+                        <td>
+                          <span className={`status-pill ${status.className}`}>
+                            {status.label}
+                          </span>
+                        </td>
+                        <td>{item.notes || "—"}</td>
+                        <td>
+                          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                            <button
+                              type="button"
+                              className="edit-btn"
+                              onClick={() => handleEditSite(item)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="delete-btn"
+                              onClick={() => handleRemoveSite(item.id)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <div className="table-wrap">
             <table className="data-table">
@@ -407,12 +670,12 @@ export default function SalesTrackerAdmin() {
                 </tr>
               </thead>
               <tbody>
-                {salesItems.length === 0 ? (
+                {leaderSalesItems.length === 0 ? (
                   <tr>
-                    <td colSpan="8">No sales entries found.</td>
+                    <td colSpan="8">No leader sales entries found.</td>
                   </tr>
                 ) : (
-                  salesItems.map((item) => {
+                  leaderSalesItems.map((item) => {
                     const percent = getPercentToTarget(
                       item.sales_target,
                       item.points_achieved
@@ -437,15 +700,14 @@ export default function SalesTrackerAdmin() {
                             <button
                               type="button"
                               className="edit-btn"
-                              onClick={() => handleEdit(item)}
+                              onClick={() => handleEditLeader(item)}
                             >
                               Edit
                             </button>
-
                             <button
                               type="button"
                               className="delete-btn"
-                              onClick={() => handleRemove(item.id)}
+                              onClick={() => handleRemoveLeader(item.id)}
                             >
                               Remove
                             </button>
