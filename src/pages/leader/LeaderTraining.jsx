@@ -49,11 +49,22 @@ function formatWeekRange(startDate, endDate) {
   return `${formatDate(startDate)} to ${formatDate(endDate)}`;
 }
 
-function getDayName(dateValue) {
-  if (!dateValue) return "";
-  const date = new Date(`${dateValue}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString("en-US", { weekday: "long" });
+function formatSessionLine(sessionDate, sessionTime) {
+  if (!sessionDate && !sessionTime) return "—";
+
+  const date = sessionDate
+    ? new Date(`${sessionDate}T00:00:00`)
+    : null;
+
+  const dayName =
+    date && !Number.isNaN(date.getTime())
+      ? date.toLocaleDateString("en-US", { weekday: "long" })
+      : "";
+
+  const formattedDate = sessionDate ? formatDate(sessionDate) : "";
+  const formattedTime = sessionTime ? formatTimeForDisplay(sessionTime) : "";
+
+  return [dayName, formattedDate, formattedTime].filter(Boolean).join(" • ");
 }
 
 export default function LeaderTraining() {
@@ -62,7 +73,6 @@ export default function LeaderTraining() {
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [openTrainingId, setOpenTrainingId] = useState("");
 
   const loadPageData = useCallback(async () => {
     setLoading(true);
@@ -140,81 +150,35 @@ export default function LeaderTraining() {
   const filteredTrainings = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
-    let items = trainingItems;
+    return trainingItems.filter((item) => {
+      if (!term) return true;
 
-    if (term) {
-      items = items.filter((item) => {
-        const topic = (item.topic || "").toLowerCase();
-        const hostLeader = (item.leaders?.name || "").toLowerCase();
-        const notes = (item.notes || "").toLowerCase();
-        const status = (item.status || "").toLowerCase();
+      const topic = (item.topic || "").toLowerCase();
+      const leader = (item.leaders?.name || "").toLowerCase();
+      const status = (item.status || "").toLowerCase();
+      const notes = (item.notes || "").toLowerCase();
 
-        return (
-          topic.includes(term) ||
-          hostLeader.includes(term) ||
-          notes.includes(term) ||
-          status.includes(term)
-        );
-      });
-    }
-
-    return items.sort((a, b) => {
-      const aDate = a.training_start_date || "";
-      const bDate = b.training_start_date || "";
-      return aDate.localeCompare(bDate);
+      return (
+        topic.includes(term) ||
+        leader.includes(term) ||
+        status.includes(term) ||
+        notes.includes(term)
+      );
     });
   }, [trainingItems, searchTerm]);
-
-  const upcomingCount = useMemo(() => {
-    return filteredTrainings.filter((item) => item.status === "scheduled").length;
-  }, [filteredTrainings]);
-
-  const totalSessionCount = useMemo(() => {
-    return filteredTrainings.reduce((total, item) => {
-      return total + (sessionsByTraining[item.id]?.length || 0);
-    }, 0);
-  }, [filteredTrainings, sessionsByTraining]);
 
   return (
     <Layout title="Weekly Training" links={leaderLinks}>
       <div style={styles.page}>
-        <div style={styles.heroCard}>
-          <div>
-            <h2 style={styles.pageTitle}>Weekly Training Schedule</h2>
-            <p style={styles.pageText}>
-              View each week’s training topic and all scheduled session start times.
-            </p>
-          </div>
-
-          <div style={styles.heroStats}>
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Training Weeks</div>
-              <div style={styles.statValue}>{filteredTrainings.length}</div>
-            </div>
-
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Scheduled Weeks</div>
-              <div style={styles.statValue}>{upcomingCount}</div>
-            </div>
-
-            <div style={styles.statCard}>
-              <div style={styles.statLabel}>Sessions</div>
-              <div style={styles.statValue}>{totalSessionCount}</div>
-            </div>
-          </div>
-        </div>
-
-        <div style={styles.filterCard}>
-          <div>
-            <h3 style={styles.sectionTitle}>Find a Training</h3>
-            <p style={styles.helperText}>
-              Search by topic, leader name, notes, or status.
-            </p>
-          </div>
+        <div style={styles.headerCard}>
+          <h2 style={styles.pageTitle}>Weekly Training Schedule</h2>
+          <p style={styles.pageText}>
+            View each training week, the host leader, and all scheduled session times.
+          </p>
 
           <input
             type="text"
-            placeholder="Search training..."
+            placeholder="Search by topic, leader, or status"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={styles.searchInput}
@@ -228,19 +192,15 @@ export default function LeaderTraining() {
         ) : filteredTrainings.length === 0 ? (
           <div style={styles.emptyState}>No training schedule found.</div>
         ) : (
-          <div style={styles.trainingGrid}>
+          <div style={styles.trainingList}>
             {filteredTrainings.map((item) => {
               const sessions = sessionsByTraining[item.id] || [];
-              const isOpen = openTrainingId === item.id;
 
               return (
                 <div key={item.id} style={styles.trainingCard}>
-                  <div style={styles.trainingHeader}>
-                    <div>
+                  <div style={styles.topRow}>
+                    <div style={styles.topicWrap}>
                       <div style={styles.topic}>{item.topic || "Untitled Training"}</div>
-                      <div style={styles.hostLine}>
-                        Host Leader: {item.leaders?.name || "Unknown"}
-                      </div>
                     </div>
 
                     <span
@@ -255,76 +215,38 @@ export default function LeaderTraining() {
                     </span>
                   </div>
 
-                  <div style={styles.infoGrid}>
-                    <div style={styles.infoBox}>
-                      <div style={styles.infoLabel}>Week Range</div>
-                      <div style={styles.infoValue}>
-                        {formatWeekRange(
-                          item.training_start_date,
-                          item.training_end_date
-                        )}
-                      </div>
-                    </div>
+                  <div style={styles.leaderBadge}>
+                    Leader: {item.leaders?.name || "Unknown"}
+                  </div>
 
-                    <div style={styles.infoBox}>
-                      <div style={styles.infoLabel}>Sessions</div>
-                      <div style={styles.infoValue}>{sessions.length}</div>
-                    </div>
+                  <div style={styles.metaText}>
+                    <strong>Week:</strong>{" "}
+                    {formatWeekRange(item.training_start_date, item.training_end_date)}
                   </div>
 
                   {item.notes ? (
-                    <div style={styles.notesBox}>
-                      <span style={styles.notesLabel}>Notes:</span> {item.notes}
+                    <div style={styles.notesText}>
+                      <strong>Notes:</strong> {item.notes}
                     </div>
                   ) : null}
 
-                  <div style={styles.sessionSection}>
-                    <div style={styles.sessionHeader}>
-                      <h4 style={styles.sessionTitle}>Session Schedule</h4>
+                  <div style={styles.sessionBlock}>
+                    <div style={styles.sessionHeading}>Session Times</div>
 
-                      <button
-                        type="button"
-                        style={styles.toggleButton}
-                        onClick={() =>
-                          setOpenTrainingId((prev) => (prev === item.id ? "" : item.id))
-                        }
-                      >
-                        {isOpen ? "Hide Sessions" : "View Sessions"}
-                      </button>
-                    </div>
-
-                    {isOpen ? (
-                      sessions.length === 0 ? (
-                        <div style={styles.noSessions}>
-                          No session times have been posted yet.
-                        </div>
-                      ) : (
-                        <div style={styles.sessionList}>
-                          {sessions.map((session) => (
-                            <div key={session.id} style={styles.sessionItem}>
-                              <div style={styles.sessionDateWrap}>
-                                <div style={styles.sessionDay}>
-                                  {getDayName(session.session_date)}
-                                </div>
-                                <div style={styles.sessionDate}>
-                                  {formatDate(session.session_date)}
-                                </div>
-                              </div>
-
-                              <div style={styles.sessionTime}>
-                                {formatTimeForDisplay(session.session_time)}
-                              </div>
-
-                              <div style={styles.sessionNote}>
-                                {session.notes || " "}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )
+                    {sessions.length === 0 ? (
+                      <div style={styles.noSessions}>
+                        No session times have been posted yet.
+                      </div>
                     ) : (
-                      <div style={styles.collapsedHint}>
-                        Click “View Sessions” to see all available start times for this week.
+                      <div style={styles.sessionList}>
+                        {sessions.map((session) => (
+                          <div key={session.id} style={styles.sessionLine}>
+                            {formatSessionLine(
+                              session.session_date,
+                              session.session_time
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -342,84 +264,32 @@ const styles = {
   page: {
     display: "flex",
     flexDirection: "column",
-    gap: "20px",
+    gap: "18px",
   },
-  heroCard: {
+  headerCard: {
     background: "#ffffff",
-    borderRadius: "18px",
+    borderRadius: "16px",
     padding: "24px",
     boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: "20px",
-    flexWrap: "wrap",
+    flexDirection: "column",
+    gap: "14px",
   },
   pageTitle: {
     margin: 0,
-    fontSize: "30px",
+    fontSize: "28px",
     fontWeight: "800",
     color: "#0f172a",
   },
   pageText: {
-    marginTop: "8px",
-    marginBottom: 0,
+    margin: 0,
     color: "#475569",
     fontSize: "15px",
     lineHeight: "1.5",
   },
-  heroStats: {
-    display: "flex",
-    gap: "12px",
-    flexWrap: "wrap",
-  },
-  statCard: {
-    background: "#f8fafc",
-    border: "1px solid #e2e8f0",
-    borderRadius: "14px",
-    padding: "14px 16px",
-    minWidth: "120px",
-  },
-  statLabel: {
-    fontSize: "12px",
-    fontWeight: "700",
-    color: "#64748b",
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
-  },
-  statValue: {
-    marginTop: "8px",
-    fontSize: "24px",
-    fontWeight: "800",
-    color: "#0f172a",
-  },
-  filterCard: {
-    background: "#ffffff",
-    borderRadius: "18px",
-    padding: "20px 24px",
-    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    gap: "16px",
-    flexWrap: "wrap",
-  },
-  sectionTitle: {
-    margin: 0,
-    fontSize: "20px",
-    fontWeight: "800",
-    color: "#0f172a",
-  },
-  helperText: {
-    marginTop: "6px",
-    marginBottom: 0,
-    color: "#64748b",
-    fontSize: "14px",
-  },
   searchInput: {
-    minWidth: "260px",
-    width: "320px",
-    maxWidth: "100%",
+    width: "100%",
+    maxWidth: "420px",
     padding: "12px 14px",
     borderRadius: "12px",
     border: "1px solid #cbd5e1",
@@ -438,46 +308,54 @@ const styles = {
   },
   emptyState: {
     background: "#ffffff",
-    borderRadius: "18px",
+    borderRadius: "16px",
     padding: "28px",
     boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
     textAlign: "center",
     color: "#64748b",
     fontWeight: "600",
   },
-  trainingGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-    gap: "18px",
-  },
-  trainingCard: {
-    background: "#ffffff",
-    borderRadius: "18px",
-    padding: "20px",
-    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
-    border: "1px solid #e2e8f0",
+  trainingList: {
     display: "flex",
     flexDirection: "column",
     gap: "16px",
   },
-  trainingHeader: {
+  trainingCard: {
+    background: "#ffffff",
+    borderRadius: "16px",
+    padding: "22px",
+    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+    border: "1px solid #e2e8f0",
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+  },
+  topRow: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: "16px",
+    gap: "14px",
     flexWrap: "wrap",
   },
+  topicWrap: {
+    flex: 1,
+    minWidth: "220px",
+  },
   topic: {
-    fontSize: "20px",
+    fontSize: "22px",
     fontWeight: "800",
     color: "#0f172a",
     lineHeight: "1.3",
   },
-  hostLine: {
-    marginTop: "6px",
+  leaderBadge: {
+    display: "inline-block",
+    width: "fit-content",
+    background: "#dbeafe",
+    color: "#1d4ed8",
+    borderRadius: "999px",
+    padding: "8px 14px",
     fontSize: "14px",
-    color: "#64748b",
-    fontWeight: "600",
+    fontWeight: "800",
   },
   statusBadge: {
     display: "inline-flex",
@@ -490,132 +368,60 @@ const styles = {
     whiteSpace: "nowrap",
   },
   statusScheduled: {
-    background: "#dbeafe",
-    color: "#1d4ed8",
+    background: "#fef3c7",
+    color: "#92400e",
   },
   statusCompleted: {
     background: "#dcfce7",
     color: "#166534",
   },
-  infoGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 120px",
-    gap: "12px",
-  },
-  infoBox: {
-    background: "#f8fafc",
-    border: "1px solid #e2e8f0",
-    borderRadius: "14px",
-    padding: "14px",
-  },
-  infoLabel: {
-    fontSize: "12px",
-    fontWeight: "700",
-    color: "#64748b",
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
-  },
-  infoValue: {
-    marginTop: "8px",
+  metaText: {
     fontSize: "15px",
-    fontWeight: "700",
-    color: "#0f172a",
-    lineHeight: "1.4",
-  },
-  notesBox: {
-    background: "#fff7ed",
-    border: "1px solid #fed7aa",
-    borderRadius: "12px",
-    padding: "12px 14px",
-    color: "#9a3412",
-    fontSize: "14px",
+    color: "#334155",
     lineHeight: "1.5",
   },
-  notesLabel: {
-    fontWeight: "800",
+  notesText: {
+    fontSize: "14px",
+    color: "#475569",
+    lineHeight: "1.5",
+    background: "#f8fafc",
+    borderRadius: "12px",
+    padding: "12px 14px",
   },
-  sessionSection: {
+  sessionBlock: {
+    marginTop: "4px",
     borderTop: "1px solid #e2e8f0",
-    paddingTop: "16px",
-  },
-  sessionHeader: {
+    paddingTop: "14px",
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "12px",
-    flexWrap: "wrap",
+    flexDirection: "column",
+    gap: "10px",
   },
-  sessionTitle: {
-    margin: 0,
+  sessionHeading: {
     fontSize: "16px",
     fontWeight: "800",
     color: "#0f172a",
   },
-  toggleButton: {
-    background: "#e2e8f0",
-    color: "#0f172a",
-    border: "none",
-    borderRadius: "10px",
-    padding: "10px 12px",
-    fontSize: "13px",
-    fontWeight: "700",
-    cursor: "pointer",
-  },
-  collapsedHint: {
-    marginTop: "12px",
+  noSessions: {
     color: "#64748b",
     fontSize: "14px",
-    lineHeight: "1.5",
-  },
-  noSessions: {
-    marginTop: "12px",
-    background: "#f8fafc",
-    border: "1px dashed #cbd5e1",
-    borderRadius: "12px",
-    padding: "14px",
-    color: "#64748b",
     fontWeight: "600",
+    background: "#f8fafc",
+    borderRadius: "12px",
+    padding: "12px 14px",
   },
   sessionList: {
     display: "flex",
     flexDirection: "column",
-    gap: "10px",
-    marginTop: "12px",
+    gap: "8px",
   },
-  sessionItem: {
-    display: "grid",
-    gridTemplateColumns: "1.2fr 110px 1fr",
-    gap: "12px",
-    alignItems: "center",
+  sessionLine: {
     background: "#f8fafc",
     border: "1px solid #e2e8f0",
-    borderRadius: "14px",
+    borderRadius: "12px",
     padding: "12px 14px",
-  },
-  sessionDateWrap: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "2px",
-  },
-  sessionDay: {
-    fontSize: "13px",
-    fontWeight: "800",
-    color: "#334155",
-  },
-  sessionDate: {
-    fontSize: "14px",
-    color: "#64748b",
-    fontWeight: "600",
-  },
-  sessionTime: {
     fontSize: "15px",
-    fontWeight: "800",
+    fontWeight: "600",
     color: "#0f172a",
-  },
-  sessionNote: {
-    fontSize: "13px",
-    color: "#64748b",
     lineHeight: "1.4",
-    minHeight: "18px",
   },
 };
