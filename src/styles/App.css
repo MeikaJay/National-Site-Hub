@@ -1081,3 +1081,43 @@ a {
     grid-template-columns: 1fr;
   }
 }
+.scroll-banner {
+  width: 100%;
+  overflow: hidden;
+  background: #0f172a;
+  color: #ffffff;
+  padding: 10px 0;
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+.scroll-text {
+  display: inline-block;
+  white-space: nowrap;
+  animation: scroll-left 20s linear infinite;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+@keyframes scroll-left {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+.scroll-divider {
+  margin: 0 40px;
+  opacity: 0.6;
+}
+.scroll-text {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  animation: scroll-left 25s linear infinite;
+  font-weight: 700;
+  font-size: 14px;
+  gap: 60px; /* THIS IS THE MAGIC */
+}
