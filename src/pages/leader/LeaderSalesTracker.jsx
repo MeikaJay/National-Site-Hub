@@ -12,16 +12,7 @@ const leaderLinks = [
   { to: "/leader/schedules", label: "Schedules" },
   { to: "/leader/sales", label: "Daily Sales" },
 ];
-function getYesterdayDate() {
-  const date = new Date();
-  date.setDate(date.getDate() - 1);
 
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-}
 function getPercentToTarget(target, achieved) {
   const targetNum = Number(target || 0);
   const achievedNum = Number(achieved || 0);
@@ -120,6 +111,17 @@ function isThisQuarter(dateString) {
   );
 }
 
+function getYesterdayDate() {
+  const date = new Date();
+  date.setDate(date.getDate() - 1);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 function sortByDateDesc(items) {
   return [...items].sort((a, b) =>
     (b.sales_date || "").localeCompare(a.sales_date || "")
@@ -135,6 +137,7 @@ export default function LeaderSalesTracker() {
   const [leaderSalesItems, setLeaderSalesItems] = useState([]);
   const [leaderFilter, setLeaderFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showDetails, setShowDetails] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
 
@@ -196,6 +199,7 @@ export default function LeaderSalesTracker() {
       }
 
       if (dateView === "today") return isSameDay(item.sales_date);
+      if (dateView === "yesterday") return isSameDay(item.sales_date, new Date(getYesterdayDate()));
       if (dateView === "week") return isThisWeek(item.sales_date);
       if (dateView === "month") return isThisMonth(item.sales_date);
       if (dateView === "quarter") return isThisQuarter(item.sales_date);
@@ -364,64 +368,58 @@ export default function LeaderSalesTracker() {
                 View Range
               </label>
               <div className="sales-tab-row" style={{ marginTop: 0 }}>
-  
-  <button
-    type="button"
-    className={`sales-tab-btn ${dateView === "today" ? "sales-tab-active" : ""}`}
-    onClick={() => {
-      setDateView("today");
-      setSelectedDate("");
-    }}
-  >
-    Today
-  </button>
-
-  <button
-    type="button"
-    className={`sales-tab-btn ${dateView === "yesterday" ? "sales-tab-active" : ""}`}
-    onClick={() => {
-      setDateView("yesterday");
-      setSelectedDate(getYesterdayDate());
-    }}
-  >
-    Yesterday
-  </button>
-
-  <button
-    type="button"
-    className={`sales-tab-btn ${dateView === "week" ? "sales-tab-active" : ""}`}
-    onClick={() => {
-      setDateView("week");
-      setSelectedDate("");
-    }}
-  >
-    Current Week
-  </button>
-
-  <button
-    type="button"
-    className={`sales-tab-btn ${dateView === "month" ? "sales-tab-active" : ""}`}
-    onClick={() => {
-      setDateView("month");
-      setSelectedDate("");
-    }}
-  >
-    Current Month
-  </button>
-
-  <button
-    type="button"
-    className={`sales-tab-btn ${dateView === "quarter" ? "sales-tab-active" : ""}`}
-    onClick={() => {
-      setDateView("quarter");
-      setSelectedDate("");
-    }}
-  >
-    Current Quarter
-  </button>
-
-</div>
-</div>
+                <button
+                  type="button"
+                  className={`sales-tab-btn ${dateView === "today" ? "sales-tab-active" : ""}`}
+                  onClick={() => {
+                    setDateView("today");
+                    setSelectedDate("");
+                  }}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  className={`sales-tab-btn ${dateView === "yesterday" ? "sales-tab-active" : ""}`}
+                  onClick={() => {
+                    setDateView("yesterday");
+                    setSelectedDate(getYesterdayDate());
+                  }}
+                >
+                  Yesterday
+                </button>
+                <button
+                  type="button"
+                  className={`sales-tab-btn ${dateView === "week" ? "sales-tab-active" : ""}`}
+                  onClick={() => {
+                    setDateView("week");
+                    setSelectedDate("");
+                  }}
+                >
+                  Current Week
+                </button>
+                <button
+                  type="button"
+                  className={`sales-tab-btn ${dateView === "month" ? "sales-tab-active" : ""}`}
+                  onClick={() => {
+                    setDateView("month");
+                    setSelectedDate("");
+                  }}
+                >
+                  Current Month
+                </button>
+                <button
+                  type="button"
+                  className={`sales-tab-btn ${dateView === "quarter" ? "sales-tab-active" : ""}`}
+                  onClick={() => {
+                    setDateView("quarter");
+                    setSelectedDate("");
+                  }}
+                >
+                  Current Quarter
+                </button>
+              </div>
+            </div>
 
             <div style={{ flex: "1 1 220px" }}>
               <label style={{ display: "block", marginBottom: "8px", fontWeight: 700 }}>
@@ -529,99 +527,127 @@ export default function LeaderSalesTracker() {
           </div>
         )}
 
-        {loading ? (
-          <div className="card">Loading sales data...</div>
-        ) : activeItems.length === 0 ? (
-          <div className="card">No sales data found for this view.</div>
-        ) : (
-          <div className="leader-sales-grid">
-            {activeTab === "site"
-              ? activeItems.map((item) => {
-                  const percent = getPercentToTarget(item.sales_target, item.points_achieved);
-                  const status = getStatusConfig(percent);
+        <div className="card">
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <h3 style={{ marginTop: 0, marginBottom: "6px" }}>Detailed Entries</h3>
+              <p style={{ margin: 0, color: "#64748b" }}>
+                Open this only when you want to review each entry.
+              </p>
+            </div>
 
-                  return (
-                    <div key={item.id} className={`leader-sales-card ${status.toneClass}`}>
-                      <div className="leader-sales-top">
-                        <div>
-                          <div className="leader-sales-name">Site</div>
-                          <div className="leader-sales-date">
-                            {formatDateDisplay(item.sales_date)}
-                          </div>
-                        </div>
-                        <span className={`status-pill ${status.className}`}>{status.label}</span>
-                      </div>
-
-                      <div className="leader-sales-metrics">
-                        <div className="leader-sales-metric-box">
-                          <div className="leader-sales-metric-label">Target</div>
-                          <div className="leader-sales-metric-value">
-                            {Number(item.sales_target || 0).toFixed(2)}
-                          </div>
-                        </div>
-
-                        <div className="leader-sales-metric-box">
-                          <div className="leader-sales-metric-label">Achieved</div>
-                          <div className="leader-sales-metric-value">
-                            {Number(item.points_achieved || 0).toFixed(2)}
-                          </div>
-                        </div>
-
-                        <div className="leader-sales-metric-box">
-                          <div className="leader-sales-metric-label">% to Target</div>
-                          <div className="leader-sales-metric-value">{percent.toFixed(2)}%</div>
-                        </div>
-                      </div>
-
-                      {item.notes ? <div className="leader-sales-notes">{item.notes}</div> : null}
-                    </div>
-                  );
-                })
-              : activeItems.map((item) => {
-                  const percent = getPercentToTarget(item.sales_target, item.points_achieved);
-                  const status = getStatusConfig(percent);
-
-                  return (
-                    <div key={item.id} className={`leader-sales-card ${status.toneClass}`}>
-                      <div className="leader-sales-top">
-                        <div>
-                          <div className="leader-sales-name">
-                            {item.leaders?.name || "Unknown Leader"}
-                          </div>
-                          <div className="leader-sales-date">
-                            {formatDateDisplay(item.sales_date)}
-                          </div>
-                        </div>
-                        <span className={`status-pill ${status.className}`}>{status.label}</span>
-                      </div>
-
-                      <div className="leader-sales-metrics">
-                        <div className="leader-sales-metric-box">
-                          <div className="leader-sales-metric-label">Target</div>
-                          <div className="leader-sales-metric-value">
-                            {Number(item.sales_target || 0).toFixed(2)}
-                          </div>
-                        </div>
-
-                        <div className="leader-sales-metric-box">
-                          <div className="leader-sales-metric-label">Achieved</div>
-                          <div className="leader-sales-metric-value">
-                            {Number(item.points_achieved || 0).toFixed(2)}
-                          </div>
-                        </div>
-
-                        <div className="leader-sales-metric-box">
-                          <div className="leader-sales-metric-label">% to Target</div>
-                          <div className="leader-sales-metric-value">{percent.toFixed(2)}%</div>
-                        </div>
-                      </div>
-
-                      {item.notes ? <div className="leader-sales-notes">{item.notes}</div> : null}
-                    </div>
-                  );
-                })}
+            <button
+              type="button"
+              className="secondary-btn"
+              onClick={() => setShowDetails((prev) => !prev)}
+            >
+              {showDetails ? "Hide Details" : "View Detailed Entries"}
+            </button>
           </div>
-        )}
+        </div>
+
+        {showDetails &&
+          (loading ? (
+            <div className="card">Loading sales data...</div>
+          ) : activeItems.length === 0 ? (
+            <div className="card">No sales data found for this view.</div>
+          ) : (
+            <div className="leader-sales-grid">
+              {activeTab === "site"
+                ? activeItems.map((item) => {
+                    const percent = getPercentToTarget(item.sales_target, item.points_achieved);
+                    const status = getStatusConfig(percent);
+
+                    return (
+                      <div key={item.id} className={`leader-sales-card ${status.toneClass}`}>
+                        <div className="leader-sales-top">
+                          <div>
+                            <div className="leader-sales-name">Site</div>
+                            <div className="leader-sales-date">
+                              {formatDateDisplay(item.sales_date)}
+                            </div>
+                          </div>
+                          <span className={`status-pill ${status.className}`}>{status.label}</span>
+                        </div>
+
+                        <div className="leader-sales-metrics">
+                          <div className="leader-sales-metric-box">
+                            <div className="leader-sales-metric-label">Target</div>
+                            <div className="leader-sales-metric-value">
+                              {Number(item.sales_target || 0).toFixed(2)}
+                            </div>
+                          </div>
+
+                          <div className="leader-sales-metric-box">
+                            <div className="leader-sales-metric-label">Achieved</div>
+                            <div className="leader-sales-metric-value">
+                              {Number(item.points_achieved || 0).toFixed(2)}
+                            </div>
+                          </div>
+
+                          <div className="leader-sales-metric-box">
+                            <div className="leader-sales-metric-label">% to Target</div>
+                            <div className="leader-sales-metric-value">{percent.toFixed(2)}%</div>
+                          </div>
+                        </div>
+
+                        {item.notes ? <div className="leader-sales-notes">{item.notes}</div> : null}
+                      </div>
+                    );
+                  })
+                : activeItems.map((item) => {
+                    const percent = getPercentToTarget(item.sales_target, item.points_achieved);
+                    const status = getStatusConfig(percent);
+
+                    return (
+                      <div key={item.id} className={`leader-sales-card ${status.toneClass}`}>
+                        <div className="leader-sales-top">
+                          <div>
+                            <div className="leader-sales-name">
+                              {item.leaders?.name || "Unknown Leader"}
+                            </div>
+                            <div className="leader-sales-date">
+                              {formatDateDisplay(item.sales_date)}
+                            </div>
+                          </div>
+                          <span className={`status-pill ${status.className}`}>{status.label}</span>
+                        </div>
+
+                        <div className="leader-sales-metrics">
+                          <div className="leader-sales-metric-box">
+                            <div className="leader-sales-metric-label">Target</div>
+                            <div className="leader-sales-metric-value">
+                              {Number(item.sales_target || 0).toFixed(2)}
+                            </div>
+                          </div>
+
+                          <div className="leader-sales-metric-box">
+                            <div className="leader-sales-metric-label">Achieved</div>
+                            <div className="leader-sales-metric-value">
+                              {Number(item.points_achieved || 0).toFixed(2)}
+                            </div>
+                          </div>
+
+                          <div className="leader-sales-metric-box">
+                            <div className="leader-sales-metric-label">% to Target</div>
+                            <div className="leader-sales-metric-value">{percent.toFixed(2)}%</div>
+                          </div>
+                        </div>
+
+                        {item.notes ? <div className="leader-sales-notes">{item.notes}</div> : null}
+                      </div>
+                    );
+                  })}
+            </div>
+          ))}
       </div>
     </Layout>
   );
