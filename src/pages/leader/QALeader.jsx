@@ -74,12 +74,24 @@ function getQAStatus(score) {
   const value = Number(score || 0);
 
   if (value >= 85) {
-    return { className: "qa-green" };
+    return {
+      className: "qa-green",
+      label: "Strong",
+      cardClass: "qa-history-green",
+    };
   }
   if (value >= 70) {
-    return { className: "qa-yellow" };
+    return {
+      className: "qa-yellow",
+      label: "Watch",
+      cardClass: "qa-history-yellow",
+    };
   }
-  return { className: "qa-red" };
+  return {
+    className: "qa-red",
+    label: "Urgent",
+    cardClass: "qa-history-red",
+  };
 }
 
 export default function QALeader() {
@@ -178,7 +190,7 @@ export default function QALeader() {
           <div>
             <h2 className="section-title">Monthly QA Performance</h2>
             <p className="section-subtext">
-              Compare site QA and team QA month over month in one simple view.
+              Compare site QA and team QA month over month in a cleaner view.
             </p>
           </div>
 
@@ -252,36 +264,46 @@ export default function QALeader() {
         </div>
 
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Monthly QA History</h3>
+          <h3 style={{ marginTop: 0, marginBottom: "14px" }}>Monthly QA History</h3>
 
           {loading ? (
             <p>Loading QA history...</p>
           ) : leaderItems.length === 0 ? (
             <p>No leader QA history found.</p>
           ) : (
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Month</th>
-                    <th>Leader</th>
-                    <th>Team QA</th>
-                    <th>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leaderItems.map((item) => (
-                    <tr key={item.id}>
-                      <td>{formatMonthDisplay(item.score_month)}</td>
-                      <td>{item.leaders?.name || "Unknown"}</td>
-                      <td className={getQAStatus(item.qa_score).className}>
-                        {Number(item.qa_score || 0).toFixed(2)}%
-                      </td>
-                      <td>{item.notes || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="qa-history-list">
+              {leaderItems.map((item) => {
+                const qaStatus = getQAStatus(item.qa_score);
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`qa-history-card ${qaStatus.cardClass}`}
+                  >
+                    <div className="qa-history-top">
+                      <div>
+                        <div className="qa-history-month">
+                          {formatMonthDisplay(item.score_month)}
+                        </div>
+                        <div className="qa-history-leader">
+                          {item.leaders?.name || "Unknown"}
+                        </div>
+                      </div>
+
+                      <div className="qa-history-score-wrap">
+                        <div className={`qa-history-score ${qaStatus.className}`}>
+                          {Number(item.qa_score || 0).toFixed(2)}%
+                        </div>
+                        <div className="qa-history-status">{qaStatus.label}</div>
+                      </div>
+                    </div>
+
+                    {item.notes ? (
+                      <div className="qa-history-notes">{item.notes}</div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
