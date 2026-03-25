@@ -12,7 +12,16 @@ const leaderLinks = [
   { to: "/leader/schedules", label: "Schedules" },
   { to: "/leader/sales", label: "Daily Sales" },
 ];
+function getYesterdayDate() {
+  const date = new Date();
+  date.setDate(date.getDate() - 1);
 
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
 function getPercentToTarget(target, achieved) {
   const targetNum = Number(target || 0);
   const achievedNum = Number(achieved || 0);
@@ -355,48 +364,64 @@ export default function LeaderSalesTracker() {
                 View Range
               </label>
               <div className="sales-tab-row" style={{ marginTop: 0 }}>
-                <button
-                  type="button"
-                  className={`sales-tab-btn ${dateView === "today" ? "sales-tab-active" : ""}`}
-                  onClick={() => {
-                    setDateView("today");
-                    setSelectedDate("");
-                  }}
-                >
-                  Today
-                </button>
-                <button
-                  type="button"
-                  className={`sales-tab-btn ${dateView === "week" ? "sales-tab-active" : ""}`}
-                  onClick={() => {
-                    setDateView("week");
-                    setSelectedDate("");
-                  }}
-                >
-                  Current Week
-                </button>
-                <button
-                  type="button"
-                  className={`sales-tab-btn ${dateView === "month" ? "sales-tab-active" : ""}`}
-                  onClick={() => {
-                    setDateView("month");
-                    setSelectedDate("");
-                  }}
-                >
-                  Current Month
-                </button>
-                <button
-                  type="button"
-                  className={`sales-tab-btn ${dateView === "quarter" ? "sales-tab-active" : ""}`}
-                  onClick={() => {
-                    setDateView("quarter");
-                    setSelectedDate("");
-                  }}
-                >
-                  Current Quarter
-                </button>
-              </div>
-            </div>
+  
+  <button
+    type="button"
+    className={`sales-tab-btn ${dateView === "today" ? "sales-tab-active" : ""}`}
+    onClick={() => {
+      setDateView("today");
+      setSelectedDate("");
+    }}
+  >
+    Today
+  </button>
+
+  <button
+    type="button"
+    className={`sales-tab-btn ${dateView === "yesterday" ? "sales-tab-active" : ""}`}
+    onClick={() => {
+      setDateView("yesterday");
+      setSelectedDate(getYesterdayDate());
+    }}
+  >
+    Yesterday
+  </button>
+
+  <button
+    type="button"
+    className={`sales-tab-btn ${dateView === "week" ? "sales-tab-active" : ""}`}
+    onClick={() => {
+      setDateView("week");
+      setSelectedDate("");
+    }}
+  >
+    Current Week
+  </button>
+
+  <button
+    type="button"
+    className={`sales-tab-btn ${dateView === "month" ? "sales-tab-active" : ""}`}
+    onClick={() => {
+      setDateView("month");
+      setSelectedDate("");
+    }}
+  >
+    Current Month
+  </button>
+
+  <button
+    type="button"
+    className={`sales-tab-btn ${dateView === "quarter" ? "sales-tab-active" : ""}`}
+    onClick={() => {
+      setDateView("quarter");
+      setSelectedDate("");
+    }}
+  >
+    Current Quarter
+  </button>
+
+</div>
+</div>
 
             <div style={{ flex: "1 1 220px" }}>
               <label style={{ display: "block", marginBottom: "8px", fontWeight: 700 }}>
