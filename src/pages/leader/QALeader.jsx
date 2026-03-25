@@ -32,11 +32,17 @@ function getTrend(current, previous) {
   }
 
   if (current > previous) {
-    return { label: `Up ${Number(current - previous).toFixed(2)} pts`, className: "trend-up" };
+    return {
+      label: `Up ${Number(current - previous).toFixed(2)} pts`,
+      className: "trend-up",
+    };
   }
 
   if (current < previous) {
-    return { label: `Down ${Number(previous - current).toFixed(2)} pts`, className: "trend-down" };
+    return {
+      label: `Down ${Number(previous - current).toFixed(2)} pts`,
+      className: "trend-down",
+    };
   }
 
   return { label: "No change", className: "trend-neutral" };
@@ -62,6 +68,18 @@ function getCompareLabel(teamScore, siteScore) {
   }
 
   return { label: "At site average", className: "trend-neutral" };
+}
+
+function getQAStatus(score) {
+  const value = Number(score || 0);
+
+  if (value >= 85) {
+    return { className: "qa-green" };
+  }
+  if (value >= 70) {
+    return { className: "qa-yellow" };
+  }
+  return { className: "qa-red" };
 }
 
 export default function QALeader() {
@@ -133,11 +151,17 @@ export default function QALeader() {
   const previousLeader = leaderItems[1] || null;
 
   const siteTrend = latestSite
-    ? getTrend(Number(latestSite.qa_score || 0), previousSite ? Number(previousSite.qa_score || 0) : null)
+    ? getTrend(
+        Number(latestSite.qa_score || 0),
+        previousSite ? Number(previousSite.qa_score || 0) : null
+      )
     : { label: "No data", className: "trend-neutral" };
 
   const leaderTrend = latestLeader
-    ? getTrend(Number(latestLeader.qa_score || 0), previousLeader ? Number(previousLeader.qa_score || 0) : null)
+    ? getTrend(
+        Number(latestLeader.qa_score || 0),
+        previousLeader ? Number(previousLeader.qa_score || 0) : null
+      )
     : { label: "No data", className: "trend-neutral" };
 
   const compareToSite = latestLeader
@@ -159,7 +183,9 @@ export default function QALeader() {
           </div>
 
           <div style={{ minWidth: "260px", width: "320px", maxWidth: "100%" }}>
-            <label style={{ display: "block", marginBottom: "8px", fontWeight: 700 }}>
+            <label
+              style={{ display: "block", marginBottom: "8px", fontWeight: 700 }}
+            >
               Leader Filter
             </label>
             <select
@@ -182,20 +208,34 @@ export default function QALeader() {
         <div className="sales-summary-grid">
           <div className="sales-summary-box">
             <div className="sales-summary-label">Site QA</div>
-            <div className="sales-summary-value">
+            <div
+              className={`sales-summary-value ${
+                latestSite ? getQAStatus(latestSite.qa_score).className : ""
+              }`}
+            >
               {latestSite ? Number(latestSite.qa_score || 0).toFixed(2) : "—"}%
             </div>
-            <div className={siteTrend.className} style={{ marginTop: "8px", fontWeight: 700 }}>
+            <div
+              className={siteTrend.className}
+              style={{ marginTop: "8px", fontWeight: 700 }}
+            >
               {siteTrend.label}
             </div>
           </div>
 
           <div className="sales-summary-box">
             <div className="sales-summary-label">Team QA</div>
-            <div className="sales-summary-value">
+            <div
+              className={`sales-summary-value ${
+                latestLeader ? getQAStatus(latestLeader.qa_score).className : ""
+              }`}
+            >
               {latestLeader ? Number(latestLeader.qa_score || 0).toFixed(2) : "—"}%
             </div>
-            <div className={leaderTrend.className} style={{ marginTop: "8px", fontWeight: 700 }}>
+            <div
+              className={leaderTrend.className}
+              style={{ marginTop: "8px", fontWeight: 700 }}
+            >
               {leaderTrend.label}
             </div>
           </div>
@@ -234,38 +274,9 @@ export default function QALeader() {
                     <tr key={item.id}>
                       <td>{formatMonthDisplay(item.score_month)}</td>
                       <td>{item.leaders?.name || "Unknown"}</td>
-                      <td>{Number(item.qa_score || 0).toFixed(2)}%</td>
-                      <td>{item.notes || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>Site QA History</h3>
-
-          {loading ? (
-            <p>Loading site QA history...</p>
-          ) : siteItems.length === 0 ? (
-            <p>No site QA history found.</p>
-          ) : (
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Month</th>
-                    <th>Site QA</th>
-                    <th>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {siteItems.map((item) => (
-                    <tr key={item.id}>
-                      <td>{formatMonthDisplay(item.score_month)}</td>
-                      <td>{Number(item.qa_score || 0).toFixed(2)}%</td>
+                      <td className={getQAStatus(item.qa_score).className}>
+                        {Number(item.qa_score || 0).toFixed(2)}%
+                      </td>
                       <td>{item.notes || "—"}</td>
                     </tr>
                   ))}

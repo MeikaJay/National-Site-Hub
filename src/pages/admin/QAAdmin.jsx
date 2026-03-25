@@ -50,6 +50,17 @@ function getTrend(current, previous) {
 
   return { label: "No change", className: "trend-neutral" };
 }
+function getQAStatus(score) {
+    const value = Number(score || 0);
+  
+    if (value >= 85) {
+      return { className: "qa-green" };
+    }
+    if (value >= 70) {
+      return { className: "qa-yellow" };
+    }
+    return { className: "qa-red" };
+  }
 
 export default function QAAdmin() {
   const [activeTab, setActiveTab] = useState("site");
