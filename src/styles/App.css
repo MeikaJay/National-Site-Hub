@@ -1164,3 +1164,103 @@ a {
 .trend-neutral {
   color: #475569;
 }
+.qa-green {
+  color: #166534;
+  font-weight: 800;
+}
+
+.qa-yellow {
+  color: #92400e;
+  font-weight: 800;
+}
+
+.qa-red {
+  color: #b91c1c;
+  font-weight: 800;
+}
+
+.trend-up {
+  color: #166534;
+}
+
+.trend-down {
+  color: #b91c1c;
+}
+
+.trend-neutral {
+  color: #475569;
+}
+
+.qa-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.qa-history-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 16px 18px;
+  background: #ffffff;
+}
+
+.qa-history-green {
+  border-left: 6px solid #22c55e;
+}
+
+.qa-history-yellow {
+  border-left: 6px solid #eab308;
+}
+
+.qa-history-red {
+  border-left: 6px solid #ef4444;
+}
+
+.qa-history-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.qa-history-month {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.qa-history-leader {
+  margin-top: 4px;
+  font-size: 14px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.qa-history-score-wrap {
+  text-align: right;
+}
+
+.qa-history-score {
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.qa-history-status {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.qa-history-notes {
+  margin-top: 12px;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.5;
+}
