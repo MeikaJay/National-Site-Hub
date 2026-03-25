@@ -26,6 +26,18 @@ function formatMonthDisplay(dateString) {
   });
 }
 
+function isCurrentMonth(dateString) {
+  if (!dateString) return false;
+
+  const date = new Date(`${dateString}T00:00:00`);
+  const today = new Date();
+
+  return (
+    date.getFullYear() === today.getFullYear() &&
+    date.getMonth() === today.getMonth()
+  );
+}
+
 function getTrend(current, previous) {
   if (previous === null || previous === undefined) {
     return { label: "No prior month", className: "trend-neutral" };
@@ -98,6 +110,7 @@ export default function QALeader() {
   const [leaders, setLeaders] = useState([]);
   const [qaItems, setQaItems] = useState([]);
   const [leaderFilter, setLeaderFilter] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
 
@@ -156,32 +169,60 @@ export default function QALeader() {
     );
   }, [qaItems, leaderFilter]);
 
-  const latestSite = siteItems[0] || null;
-  const previousSite = siteItems[1] || null;
+  const currentSite = useMemo(() => {
+    return siteItems.find((item) => isCurrentMonth(item.score_month)) || siteItems[0] || null;
+  }, [siteItems]);
 
-  const latestLeader = leaderItems[0] || null;
-  const previousLeader = leaderItems[1] || null;
+  const currentLeader = useMemo(() => {
+    return (
+      leaderItems.find((item) => isCurrentMonth(item.score_month)) ||
+      leaderItems[0] ||
+      null
+    );
+  }, [leaderItems]);
 
-  const siteTrend = latestSite
+  const previousSite = useMemo(() => {
+    if (!currentSite) return null;
+
+    return (
+      siteItems.find((item) => item.id !== currentSite.id) || null
+    );
+  }, [siteItems, currentSite]);
+
+  const previousLeader = useMemo(() => {
+    if (!currentLeader) return null;
+
+    return (
+      leaderItems.find((item) => item.id !== currentLeader.id) || null
+    );
+  }, [leaderItems, currentLeader]);
+
+  const siteTrend = currentSite
     ? getTrend(
-        Number(latestSite.qa_score || 0),
+        Number(currentSite.qa_score || 0),
         previousSite ? Number(previousSite.qa_score || 0) : null
       )
     : { label: "No data", className: "trend-neutral" };
 
-  const leaderTrend = latestLeader
+  const leaderTrend = currentLeader
     ? getTrend(
-        Number(latestLeader.qa_score || 0),
+        Number(currentLeader.qa_score || 0),
         previousLeader ? Number(previousLeader.qa_score || 0) : null
       )
     : { label: "No data", className: "trend-neutral" };
 
-  const compareToSite = latestLeader
+  const compareToSite = currentLeader
     ? getCompareLabel(
-        Number(latestLeader.qa_score || 0),
-        latestSite ? Number(latestSite.qa_score || 0) : null
+        Number(currentLeader.qa_score || 0),
+        currentSite ? Number(currentSite.qa_score || 0) : null
       )
     : { label: "No data", className: "trend-neutral" };
+
+  const historyItems = useMemo(() => {
+    if (!currentLeader) return [];
+
+    return leaderItems.filter((item) => item.id !== currentLeader.id);
+  }, [leaderItems, currentLeader]);
 
   return (
     <Layout title="QA Performance" links={leaderLinks}>
@@ -190,7 +231,7 @@ export default function QALeader() {
           <div>
             <h2 className="section-title">Monthly QA Performance</h2>
             <p className="section-subtext">
-              Compare site QA and team QA month over month in a cleaner view.
+              View the current month first, then open history only when you need it.
             </p>
           </div>
 
@@ -222,10 +263,10 @@ export default function QALeader() {
             <div className="sales-summary-label">Site QA</div>
             <div
               className={`sales-summary-value ${
-                latestSite ? getQAStatus(latestSite.qa_score).className : ""
+                currentSite ? getQAStatus(currentSite.qa_score).className : ""
               }`}
             >
-              {latestSite ? Number(latestSite.qa_score || 0).toFixed(2) : "—"}%
+              {currentSite ? Number(currentSite.qa_score || 0).toFixed(2) : "—"}%
             </div>
             <div
               className={siteTrend.className}
@@ -239,10 +280,10 @@ export default function QALeader() {
             <div className="sales-summary-label">Team QA</div>
             <div
               className={`sales-summary-value ${
-                latestLeader ? getQAStatus(latestLeader.qa_score).className : ""
+                currentLeader ? getQAStatus(currentLeader.qa_score).className : ""
               }`}
             >
-              {latestLeader ? Number(latestLeader.qa_score || 0).toFixed(2) : "—"}%
+              {currentLeader ? Number(currentLeader.qa_score || 0).toFixed(2) : "—"}%
             </div>
             <div
               className={leaderTrend.className}
@@ -264,49 +305,120 @@ export default function QALeader() {
         </div>
 
         <div className="card">
-          <h3 style={{ marginTop: 0, marginBottom: "14px" }}>Monthly QA History</h3>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <h3 style={{ marginTop: 0, marginBottom: "6px" }}>Current Month</h3>
+              <p style={{ margin: 0, color: "#64748b" }}>
+                {currentLeader
+                  ? `Showing ${formatMonthDisplay(currentLeader.score_month)}`
+                  : "No current month data found"}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="secondary-btn"
+              onClick={() => setShowHistory((prev) => !prev)}
+            >
+              {showHistory ? "Hide History" : "View History"}
+            </button>
+          </div>
 
           {loading ? (
-            <p>Loading QA history...</p>
-          ) : leaderItems.length === 0 ? (
-            <p>No leader QA history found.</p>
+            <p style={{ marginTop: "16px" }}>Loading QA history...</p>
+          ) : !currentLeader ? (
+            <p style={{ marginTop: "16px" }}>No leader QA history found.</p>
           ) : (
-            <div className="qa-history-list">
-              {leaderItems.map((item) => {
-                const qaStatus = getQAStatus(item.qa_score);
-
-                return (
-                  <div
-                    key={item.id}
-                    className={`qa-history-card ${qaStatus.cardClass}`}
-                  >
-                    <div className="qa-history-top">
-                      <div>
-                        <div className="qa-history-month">
-                          {formatMonthDisplay(item.score_month)}
-                        </div>
-                        <div className="qa-history-leader">
-                          {item.leaders?.name || "Unknown"}
-                        </div>
-                      </div>
-
-                      <div className="qa-history-score-wrap">
-                        <div className={`qa-history-score ${qaStatus.className}`}>
-                          {Number(item.qa_score || 0).toFixed(2)}%
-                        </div>
-                        <div className="qa-history-status">{qaStatus.label}</div>
-                      </div>
+            <div className="qa-history-list" style={{ marginTop: "16px" }}>
+              <div
+                className={`qa-history-card ${
+                  getQAStatus(currentLeader.qa_score).cardClass
+                }`}
+              >
+                <div className="qa-history-top">
+                  <div>
+                    <div className="qa-history-month">
+                      {formatMonthDisplay(currentLeader.score_month)}
                     </div>
-
-                    {item.notes ? (
-                      <div className="qa-history-notes">{item.notes}</div>
-                    ) : null}
+                    <div className="qa-history-leader">
+                      {currentLeader.leaders?.name || "Unknown"}
+                    </div>
                   </div>
-                );
-              })}
+
+                  <div className="qa-history-score-wrap">
+                    <div
+                      className={`qa-history-score ${
+                        getQAStatus(currentLeader.qa_score).className
+                      }`}
+                    >
+                      {Number(currentLeader.qa_score || 0).toFixed(2)}%
+                    </div>
+                    <div className="qa-history-status">
+                      {getQAStatus(currentLeader.qa_score).label}
+                    </div>
+                  </div>
+                </div>
+
+                {currentLeader.notes ? (
+                  <div className="qa-history-notes">{currentLeader.notes}</div>
+                ) : null}
+              </div>
             </div>
           )}
         </div>
+
+        {showHistory && (
+          <div className="card">
+            <h3 style={{ marginTop: 0, marginBottom: "14px" }}>Previous Months</h3>
+
+            {historyItems.length === 0 ? (
+              <p>No previous QA history found.</p>
+            ) : (
+              <div className="qa-history-list">
+                {historyItems.map((item) => {
+                  const qaStatus = getQAStatus(item.qa_score);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`qa-history-card ${qaStatus.cardClass}`}
+                    >
+                      <div className="qa-history-top">
+                        <div>
+                          <div className="qa-history-month">
+                            {formatMonthDisplay(item.score_month)}
+                          </div>
+                          <div className="qa-history-leader">
+                            {item.leaders?.name || "Unknown"}
+                          </div>
+                        </div>
+
+                        <div className="qa-history-score-wrap">
+                          <div className={`qa-history-score ${qaStatus.className}`}>
+                            {Number(item.qa_score || 0).toFixed(2)}%
+                          </div>
+                          <div className="qa-history-status">{qaStatus.label}</div>
+                        </div>
+                      </div>
+
+                      {item.notes ? (
+                        <div className="qa-history-notes">{item.notes}</div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </Layout>
   );
