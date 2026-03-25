@@ -1153,3 +1153,14 @@ a {
     transform: translateX(-100%);
   }
 }
+.trend-up {
+  color: #166534;
+}
+
+.trend-down {
+  color: #b91c1c;
+}
+
+.trend-neutral {
+  color: #475569;
+}

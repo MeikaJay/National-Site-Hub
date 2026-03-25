@@ -1,3 +1,5 @@
+import QAAdmin from "./pages/admin/QAAdmin";
+import QALeader from "./pages/leader/QALeader";
 import SalesTrackerAdmin from "./pages/admin/SalesTrackerAdmin";
 import LeaderSalesTracker from "./pages/leader/LeaderSalesTracker";
 import PIPAdmin from "./pages/admin/PIPAdmin";
@@ -44,6 +46,8 @@ export default function App() {
 <Route path="/leader/pips" element={<LeaderPIPs />} />
 <Route path="/admin/sales" element={<SalesTrackerAdmin />} />
 <Route path="/leader/sales" element={<LeaderSalesTracker />} />
+<Route path="/admin/qa" element={<QAAdmin />} />
+<Route path="/leader/qa" element={<QALeader />} />
     </Routes>
   );
 }

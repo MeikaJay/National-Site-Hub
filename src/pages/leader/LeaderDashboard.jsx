@@ -12,6 +12,7 @@ const leaderLinks = [
   { to: "/leader/pips", label: "PIPs" },
   { to: "/leader/schedules", label: "Schedules" },
   { to: "/leader/sales", label: "Daily Sales" },
+  { to: "/leader/qa", label: "QA Performance" },
 ];
 
 function getBannerMessage(percent, trend) {
