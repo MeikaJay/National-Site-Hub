@@ -1094,7 +1094,7 @@ a {
 .scroll-text {
   display: inline-block;
   white-space: nowrap;
-  animation: scroll-left 20s linear infinite;
+  animation: scroll-left 25s linear infinite;
   font-weight: 700;
   font-size: 14px;
   letter-spacing: 0.5px;
