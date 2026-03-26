@@ -1364,3 +1364,35 @@ a {
   color: #475569;
   line-height: 1.5;
 }
+.scroll-banner {
+  width: 100%;
+  overflow: hidden;
+  background: #0f172a;
+  color: #ffffff;
+  padding: 10px 0;
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+.scroll-text {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  animation: scroll-left 28s linear infinite;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.scroll-divider {
+  margin: 0 50px;
+  opacity: 0.55;
+}
+
+@keyframes scroll-left {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
