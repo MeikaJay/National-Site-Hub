@@ -29,6 +29,20 @@ const emptyForm = {
   notes: "",
 };
 
+function escapeCsvValue(value) {
+  const stringValue = String(value ?? "");
+  const escaped = stringValue.replace(/"/g, '""');
+  return `"${escaped}"`;
+}
+
+function getTodayStamp() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function PIPAdmin() {
   const [formData, setFormData] = useState(emptyForm);
   const [pipRecords, setPipRecords] = useState([]);
@@ -207,6 +221,63 @@ export default function PIPAdmin() {
       return matchesSearch && matchesTeam;
     });
   }, [pipRecords, searchTerm, teamFilter]);
+
+  function handleExportExcel() {
+    if (filteredRecords.length === 0) {
+      setMessage("There are no PIP records to export.");
+      return;
+    }
+
+    const headers = [
+      "Employee",
+      "Team",
+      "Leader",
+      "PIP Month",
+      "PIP Type",
+      "Issue Category",
+      "Start Date",
+      "Review Date",
+      "Status",
+      "Expectations",
+      "Action Steps",
+      "Notes",
+    ];
+
+    const rows = filteredRecords.map((record) => [
+      record.employee_name || "",
+      record.team_name || "",
+      record.leader_name || "",
+      record.pip_month || "",
+      record.pip_type || "",
+      record.issue_category || "",
+      record.start_date || "",
+      record.review_date || "",
+      record.status || "",
+      record.expectations || "",
+      record.action_steps || "",
+      record.notes || "",
+    ]);
+
+    const csvContent = [
+      headers.map(escapeCsvValue).join(","),
+      ...rows.map((row) => row.map(escapeCsvValue).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `pip_records_${getTodayStamp()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setMessage("PIP records exported successfully.");
+  }
 
   return (
     <Layout title="PIP Tracker" links={adminLinks}>
@@ -408,6 +479,14 @@ export default function PIPAdmin() {
                 placeholder="Search employee, leader, month, team, or status"
                 style={styles.searchInput}
               />
+
+              <button
+                type="button"
+                style={styles.exportButton}
+                onClick={handleExportExcel}
+              >
+                Export to Excel
+              </button>
             </div>
           </div>
 
@@ -582,6 +661,7 @@ const styles = {
     display: "flex",
     gap: "12px",
     flexWrap: "wrap",
+    alignItems: "center",
   },
   searchInput: {
     minWidth: "220px",
@@ -590,6 +670,16 @@ const styles = {
     border: "1px solid #cbd5e1",
     fontSize: "14px",
     background: "#fff",
+  },
+  exportButton: {
+    padding: "12px 18px",
+    border: "none",
+    borderRadius: "12px",
+    background: "#dbeafe",
+    color: "#1d4ed8",
+    fontWeight: "700",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
   },
   tableWrap: {
     overflowX: "auto",
